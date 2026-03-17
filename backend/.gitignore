@@ -1,3 +1,4 @@
+.env
 .venv/
 venv/
 __pycache__/
@@ -6,3 +7,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 htmlcov/
+storage/presentations/*
+!storage/presentations/README.md
+assets/templates/*.pptx
+!assets/templates/README.md

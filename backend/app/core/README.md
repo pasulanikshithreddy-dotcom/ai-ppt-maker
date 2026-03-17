@@ -1,3 +1,3 @@
 # Core
 
-Place configuration, settings management, logging, and shared infrastructure code here.
+Place application startup, logging, and shared infrastructure code here.

@@ -1,3 +1,3 @@
 # Tests
 
-Add backend unit and integration tests here as the API grows.
+Add backend unit and integration tests here. The initial suite covers the health endpoint and basic application wiring.
