@@ -39,11 +39,15 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_anon_key: SecretStr | None = None
     supabase_service_role_key: SecretStr | None = None
+    supabase_schema: str = "public"
+    supabase_presentations_bucket: str = "presentations"
+    supabase_templates_bucket: str = "templates"
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
 
     ppt_template_dir: Path = Path("assets/templates")
+    template_catalog_path: Path = Path("assets/templates/catalog.json")
     generated_ppt_dir: Path = Path("storage/presentations")
 
     @field_validator("cors_allowed_origins", mode="before")

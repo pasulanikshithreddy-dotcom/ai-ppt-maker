@@ -13,12 +13,21 @@ class PresentationStatus(StrEnum):
     FAILED = "failed"
 
 
+class PresentationSource(StrEnum):
+    SAMPLE = "sample"
+    TOPIC = "topic"
+    NOTES = "notes"
+    PDF = "pdf"
+
+
 @dataclass(slots=True)
-class PresentationJob:
-    prompt: str
-    title: str | None = None
-    slide_count: int = 10
-    job_id: str = field(default_factory=lambda: new_id("deck"))
+class PresentationRecord:
+    title: str
+    source_type: PresentationSource
+    slide_count: int
+    template_id: str = "starter"
+    presentation_id: str = field(default_factory=lambda: new_id("pres"))
     status: PresentationStatus = PresentationStatus.QUEUED
     created_at: datetime = field(default_factory=utc_now)
+    content_preview: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)

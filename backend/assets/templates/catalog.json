@@ -1,0 +1,212 @@
+[
+  {
+    "id": "academic_clean",
+    "name": "Academic Clean",
+    "description": "Structured lecture and research deck with a restrained academic look.",
+    "is_pro": false,
+    "theme": {
+      "title_font_size": 28,
+      "body_font_size": 18,
+      "primary_color": "1F3A5F",
+      "secondary_color": "EAF1F8",
+      "font_family": "Calibri"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "minimal_header",
+      "content_columns": 1,
+      "show_page_numbers": true,
+      "use_accent_band": false
+    }
+  },
+  {
+    "id": "startup_pitch",
+    "name": "Startup Pitch",
+    "description": "High-contrast investor deck layout for product, traction, and fundraising stories.",
+    "is_pro": false,
+    "theme": {
+      "title_font_size": 30,
+      "body_font_size": 18,
+      "primary_color": "0F172A",
+      "secondary_color": "E2E8F0",
+      "font_family": "Aptos"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "bold_split",
+      "content_columns": 2,
+      "show_page_numbers": true,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "creative_story",
+    "name": "Creative Story",
+    "description": "Friendly narrative template for brand stories, vision decks, and mood-driven flows.",
+    "is_pro": false,
+    "theme": {
+      "title_font_size": 32,
+      "body_font_size": 19,
+      "primary_color": "A63A50",
+      "secondary_color": "F8E9EC",
+      "font_family": "Trebuchet MS"
+    },
+    "layout": {
+      "title_alignment": "center",
+      "body_alignment": "left",
+      "cover_style": "full_bleed_quote",
+      "content_columns": 1,
+      "show_page_numbers": false,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "modern_minimal",
+    "name": "Modern Minimal",
+    "description": "Calm, professional layout optimized for concise executive updates.",
+    "is_pro": false,
+    "theme": {
+      "title_font_size": 29,
+      "body_font_size": 18,
+      "primary_color": "1C1C1C",
+      "secondary_color": "F4F4F4",
+      "font_family": "Segoe UI"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "quiet_corner",
+      "content_columns": 1,
+      "show_page_numbers": true,
+      "use_accent_band": false
+    }
+  },
+  {
+    "id": "classroom_bright",
+    "name": "Classroom Bright",
+    "description": "Lively classroom presentation layout for teachers, workshops, and tutorials.",
+    "is_pro": false,
+    "theme": {
+      "title_font_size": 30,
+      "body_font_size": 20,
+      "primary_color": "005F73",
+      "secondary_color": "E9F7F8",
+      "font_family": "Verdana"
+    },
+    "layout": {
+      "title_alignment": "center",
+      "body_alignment": "left",
+      "cover_style": "banner_top",
+      "content_columns": 2,
+      "show_page_numbers": true,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "boardroom_luxe",
+    "name": "Boardroom Luxe",
+    "description": "Elegant dark-accent board deck for strategy reviews and leadership reporting.",
+    "is_pro": true,
+    "theme": {
+      "title_font_size": 31,
+      "body_font_size": 18,
+      "primary_color": "2B2D42",
+      "secondary_color": "EDF2F4",
+      "font_family": "Cambria"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "framed_title",
+      "content_columns": 2,
+      "show_page_numbers": true,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "product_showcase",
+    "name": "Product Showcase",
+    "description": "Feature-forward deck design for demos, launches, and roadmap reveals.",
+    "is_pro": true,
+    "theme": {
+      "title_font_size": 32,
+      "body_font_size": 18,
+      "primary_color": "1447E6",
+      "secondary_color": "EAF1FF",
+      "font_family": "Bahnschrift"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "hero_product",
+      "content_columns": 2,
+      "show_page_numbers": false,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "financial_report",
+    "name": "Financial Report",
+    "description": "Clean finance-oriented layout for metrics, forecasts, and quarterly results.",
+    "is_pro": true,
+    "theme": {
+      "title_font_size": 28,
+      "body_font_size": 17,
+      "primary_color": "1B4332",
+      "secondary_color": "EDF6F1",
+      "font_family": "Georgia"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "metric_panel",
+      "content_columns": 2,
+      "show_page_numbers": true,
+      "use_accent_band": false
+    }
+  },
+  {
+    "id": "conference_keynote",
+    "name": "Conference Keynote",
+    "description": "Big-stage keynote style for conferences, launches, and memorable public talks.",
+    "is_pro": true,
+    "theme": {
+      "title_font_size": 34,
+      "body_font_size": 20,
+      "primary_color": "5A189A",
+      "secondary_color": "F7EFFC",
+      "font_family": "Gill Sans"
+    },
+    "layout": {
+      "title_alignment": "center",
+      "body_alignment": "center",
+      "cover_style": "stage_spotlight",
+      "content_columns": 1,
+      "show_page_numbers": false,
+      "use_accent_band": true
+    }
+  },
+  {
+    "id": "brand_editorial",
+    "name": "Brand Editorial",
+    "description": "Magazine-inspired visual system for creative brands and polished campaign decks.",
+    "is_pro": true,
+    "theme": {
+      "title_font_size": 33,
+      "body_font_size": 19,
+      "primary_color": "7F5539",
+      "secondary_color": "F6EFE8",
+      "font_family": "Book Antiqua"
+    },
+    "layout": {
+      "title_alignment": "left",
+      "body_alignment": "left",
+      "cover_style": "editorial_grid",
+      "content_columns": 2,
+      "show_page_numbers": true,
+      "use_accent_band": true
+    }
+  }
+]
