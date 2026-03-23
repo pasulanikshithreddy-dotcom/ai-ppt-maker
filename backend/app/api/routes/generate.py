@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.api.deps import (
     get_content_generation_service,
+    get_current_user_context,
     get_notes_generation_service,
-    get_presentation_service,
+    get_pdf_generation_service,
 )
 from app.schemas.common import ApiResponse
 from app.schemas.content_generation import (
@@ -17,6 +18,7 @@ from app.schemas.presentation import (
     GenerateFromPdfRequest,
     GenerationResult,
 )
+from app.schemas.user import AuthenticatedUserContext
 from app.services.content_generation_service import (
     ContentGenerationConfigurationError,
     ContentGenerationError,
@@ -29,10 +31,15 @@ from app.services.notes_generation_service import (
     NotesGenerationPermissionError,
     NotesGenerationService,
 )
-from app.services.presentation_service import PresentationService
+from app.services.pdf_generation_service import (
+    PdfGenerationConfigurationError,
+    PdfGenerationError,
+    PdfGenerationNotFoundError,
+    PdfGenerationPermissionError,
+    PdfGenerationService,
+)
 
 router = APIRouter()
-PresentationServiceDep = Annotated[PresentationService, Depends(get_presentation_service)]
 ContentGenerationServiceDep = Annotated[
     ContentGenerationService,
     Depends(get_content_generation_service),
@@ -40,6 +47,14 @@ ContentGenerationServiceDep = Annotated[
 NotesGenerationServiceDep = Annotated[
     NotesGenerationService,
     Depends(get_notes_generation_service),
+]
+PdfGenerationServiceDep = Annotated[
+    PdfGenerationService,
+    Depends(get_pdf_generation_service),
+]
+AuthenticatedUserContextDep = Annotated[
+    AuthenticatedUserContext,
+    Depends(get_current_user_context),
 ]
 
 
@@ -75,7 +90,14 @@ async def generate_from_topic(
 async def generate_from_notes(
     payload: GenerateFromNotesRequest,
     notes_generation_service: NotesGenerationServiceDep,
+    current_user: AuthenticatedUserContextDep,
 ) -> ApiResponse[GenerationResult]:
+    if payload.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated user does not match the requested user_id.",
+        )
+
     try:
         result = notes_generation_service.generate_from_notes(payload)
     except NotesGenerationConfigurationError as exc:
@@ -99,10 +121,50 @@ async def generate_from_notes(
     summary="Generate presentation from a PDF source",
 )
 async def generate_from_pdf(
-    payload: GenerateFromPdfRequest,
-    presentation_service: PresentationServiceDep,
+    pdf: Annotated[UploadFile, File(...)],
+    template_id: Annotated[str, Form(...)],
+    user_id: Annotated[str, Form(...)],
+    pdf_generation_service: PdfGenerationServiceDep,
+    current_user: AuthenticatedUserContextDep,
+    slide_count: Annotated[int, Form()] = 10,
 ) -> ApiResponse[GenerationResult]:
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated user does not match the requested user_id.",
+        )
+
+    filename = pdf.filename or "uploaded.pdf"
+    is_pdf_content_type = pdf.content_type in {"application/pdf", "application/x-pdf"}
+    if not is_pdf_content_type and not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="A PDF file is required.")
+
+    pdf_bytes = await pdf.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded PDF was empty.")
+
+    payload = GenerateFromPdfRequest(
+        source_filename=filename,
+        template_id=template_id,
+        user_id=user_id,
+        slide_count=slide_count,
+    )
+
+    try:
+        result = pdf_generation_service.generate_from_pdf(
+            payload,
+            pdf_bytes=pdf_bytes,
+        )
+    except PdfGenerationConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except PdfGenerationPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except PdfGenerationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PdfGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     return ApiResponse(
-        message="PDF generation request accepted.",
-        data=presentation_service.generate_from_pdf(payload),
+        message="PDF presentation generated successfully.",
+        data=result,
     )

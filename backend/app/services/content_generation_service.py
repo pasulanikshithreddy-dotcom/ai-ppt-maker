@@ -93,6 +93,39 @@ class ContentGenerationService:
         self._validate_presentation(presentation, slide_count)
         return presentation
 
+    def generate_pdf_presentation(
+        self,
+        *,
+        extracted_text: str,
+        slide_count: int,
+        source_name: str,
+    ) -> GeneratedPresentationContent:
+        if not self.openai_service.is_configured():
+            raise ContentGenerationConfigurationError(
+                "OpenAI API is not configured for content generation."
+            )
+
+        user_prompt = (
+            f"Source PDF name: {source_name}\n"
+            f"Requested slide count: {slide_count}\n\n"
+            "Readable text extracted from the PDF:\n"
+            f"{extracted_text}"
+        )
+        try:
+            presentation = self.openai_service.parse_chat_completion(
+                system_prompt=PDF_TO_PPT_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                response_format=GeneratedPresentationContent,
+                temperature=0.3,
+            )
+        except (ValidationError, ValueError) as exc:
+            raise ContentGenerationError(
+                "Generated presentation content was invalid."
+            ) from exc
+
+        self._validate_presentation(presentation, slide_count)
+        return presentation
+
     @staticmethod
     def _validate_presentation(
         presentation: GeneratedPresentationContent,
@@ -141,5 +174,23 @@ Rules:
 - Speaker notes should expand on the slide in a presenter-friendly way.
 - Bullets should be concise, non-redundant, and ready for a deck.
 - Use any suggested topic or title only if it improves the output.
+- Do not return markdown, prose, or any text outside the structured response.
+""".strip()
+
+
+PDF_TO_PPT_SYSTEM_PROMPT = """
+You are AI PPT Maker, an expert presentation writer.
+Turn extracted PDF text into structured presentation JSON only.
+
+Rules:
+- Return a presentation title and a slides array.
+- The slides array must contain exactly the requested number of slides.
+- Each slide must include:
+  - title
+  - bullets
+  - speaker_notes
+- Summarize the document faithfully and avoid inventing unsupported claims.
+- Prioritize key arguments, findings, timelines, and decisions over minor details.
+- Speaker notes should add context a presenter can use while staying grounded in the source.
 - Do not return markdown, prose, or any text outside the structured response.
 """.strip()

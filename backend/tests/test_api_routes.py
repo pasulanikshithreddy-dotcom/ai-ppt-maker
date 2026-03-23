@@ -1,12 +1,47 @@
 from datetime import datetime
+from uuid import UUID
+
+import pytest
+
+from app.api.deps import get_current_user_context
+from app.main import app
+from app.schemas.database import UserRow
+from app.schemas.user import AuthenticatedUserContext
+
+TEST_USER_ID = "4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"
+
+
+@pytest.fixture()
+def auth_override():
+    def apply(*, plan_code: str = "pro") -> AuthenticatedUserContext:
+        now = datetime.fromisoformat("2026-03-23T12:00:00+00:00")
+        profile = UserRow(
+            id=UUID(TEST_USER_ID),
+            email="nik@example.com",
+            full_name="Nik Sharma",
+            plan_type=plan_code,
+            created_at=now,
+            updated_at=now,
+        )
+        context = AuthenticatedUserContext(
+            id=TEST_USER_ID,
+            email=profile.email,
+            full_name=profile.full_name,
+            plan_code=plan_code,
+            profile=profile,
+            subscription=None,
+        )
+        app.dependency_overrides[get_current_user_context] = lambda: context
+        return context
+
+    yield apply
+    app.dependency_overrides.clear()
 
 
 def test_public_get_routes_return_consistent_envelopes(client) -> None:
     for endpoint in (
         "/api/v1/health",
         "/api/v1/templates",
-        "/api/v1/me",
-        "/api/v1/plan",
         "/api/v1/presentations",
     ):
         response = client.get(endpoint)
@@ -16,6 +51,38 @@ def test_public_get_routes_return_consistent_envelopes(client) -> None:
         assert payload["success"] is True
         assert "message" in payload
         assert "data" in payload
+
+
+def test_authenticated_me_and_plan_routes_return_user_context(
+    client,
+    auth_override,
+) -> None:
+    auth_override(plan_code="pro")
+
+    me_response = client.get(
+        "/api/v1/me",
+        headers={"Authorization": "Bearer test-token"},
+    )
+    plan_response = client.get(
+        "/api/v1/plan",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert me_response.status_code == 200
+    assert plan_response.status_code == 200
+
+    me_payload = me_response.json()
+    plan_payload = plan_response.json()
+
+    assert me_payload["data"]["id"] == TEST_USER_ID
+    assert me_payload["data"]["plan_code"] == "pro"
+    assert me_payload["data"]["authenticated"] is True
+    assert plan_payload["data"]["current_plan"]["code"] == "pro"
+    assert plan_payload["data"]["is_paid"] is True
+    assert any(
+        plan["code"] == "pro" and plan["active"] is True
+        for plan in plan_payload["data"]["available_plans"]
+    )
 
 
 def test_templates_route_returns_full_template_catalog(client) -> None:
@@ -82,10 +149,16 @@ def test_generate_topic_returns_structured_presentation_content(monkeypatch, cli
     assert payload["data"]["slides"][0]["bullets"]
 
 
-def test_generate_notes_returns_saved_presentation_and_content(monkeypatch, client) -> None:
+def test_generate_notes_returns_saved_presentation_and_content(
+    monkeypatch,
+    client,
+    auth_override,
+) -> None:
     from app.models.presentation import PresentationSource, PresentationStatus
     from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
     from app.schemas.presentation import GenerationResult, PresentationDetail
+
+    auth_override(plan_code="pro")
 
     def fake_generate_from_notes(self, _payload):
         return GenerationResult(
@@ -137,10 +210,11 @@ def test_generate_notes_returns_saved_presentation_and_content(monkeypatch, clie
             "notes": "Problem framing\nSolution framing\nWorkflow details\nClosing summary",
             "title": "Notes Draft",
             "topic": "Customer Research",
-            "user_id": "user_1",
+            "user_id": TEST_USER_ID,
             "slide_count": 4,
             "template_id": "boardroom_luxe",
         },
+        headers={"Authorization": "Bearer test-token"},
     )
 
     assert notes_response.status_code == 200
@@ -151,19 +225,90 @@ def test_generate_notes_returns_saved_presentation_and_content(monkeypatch, clie
     assert payload["data"]["content"]["presentation_title"] == "Customer Research Summary"
 
 
-def test_generate_pdf_returns_watermark_flag_for_free_exports(client) -> None:
+def test_generate_pdf_returns_preview_and_download_url(
+    monkeypatch,
+    client,
+    auth_override,
+) -> None:
+    from app.models.presentation import PresentationSource, PresentationStatus
+    from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
+    from app.schemas.presentation import GenerationResult, PresentationDetail
+
+    auth_override(plan_code="pro")
+
+    def fake_generate_from_pdf(self, _payload, *, pdf_bytes):
+        assert pdf_bytes.startswith(b"%PDF")
+        return GenerationResult(
+            queued=False,
+            presentation=PresentationDetail(
+                id="cc7bfc6f-64f7-4c8c-b7cd-412a6b3a9990",
+                title="Uploaded Report Summary",
+                topic="uploaded report",
+                file_url=(
+                    "https://example.supabase.co/storage/v1/object/public/"
+                    "presentations/generated/report.pptx"
+                ),
+                source_type=PresentationSource.PDF,
+                status=PresentationStatus.COMPLETED,
+                slide_count=3,
+                watermark_applied=False,
+                created_at=datetime.fromisoformat("2026-03-23T12:00:00+00:00"),
+                template_id="boardroom_luxe",
+                content_preview=["Overview", "Findings", "Recommendations"],
+                metadata={
+                    "source_pdf_url": (
+                        "https://example.supabase.co/storage/v1/object/public/"
+                        "presentations/source/report.pdf"
+                    )
+                },
+            ),
+            content=GeneratedPresentationContent(
+                presentation_title="Uploaded Report Summary",
+                slides=[
+                    PresentationSlide(
+                        title="Overview",
+                        bullets=["The document was summarized", "Key sections were extracted"],
+                        speaker_notes="Introduce the report and the core scope covered by the PDF.",
+                    ),
+                    PresentationSlide(
+                        title="Findings",
+                        bullets=["Main finding one", "Main finding two"],
+                        speaker_notes=(
+                            "Explain the strongest findings preserved from the "
+                            "source PDF."
+                        ),
+                    ),
+                    PresentationSlide(
+                        title="Recommendations",
+                        bullets=["Action one", "Action two"],
+                        speaker_notes="Close with the most actionable takeaways from the source.",
+                    ),
+                ],
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.pdf_generation_service.PdfGenerationService.generate_from_pdf",
+        fake_generate_from_pdf,
+    )
+
     pdf_response = client.post(
         "/api/v1/generate/pdf",
-        json={
-            "pdf_url": "https://example.com/source.pdf",
-            "title": "PDF Draft",
-            "slide_count": 4,
-            "template_id": "modern_minimal",
+        data={
+            "template_id": "boardroom_luxe",
+            "user_id": TEST_USER_ID,
+            "slide_count": 3,
         },
+        files={"pdf": ("report.pdf", b"%PDF-1.4 fake pdf content", "application/pdf")},
+        headers={"Authorization": "Bearer test-token"},
     )
 
     assert pdf_response.status_code == 200
-    assert pdf_response.json()["data"]["presentation"]["watermark_applied"] is True
+    payload = pdf_response.json()
+    assert payload["data"]["presentation"]["watermark_applied"] is False
+    assert payload["data"]["presentation"]["file_url"]
+    assert payload["data"]["presentation"]["metadata"]["source_pdf_url"]
+    assert payload["data"]["content"]["presentation_title"] == "Uploaded Report Summary"
 
 
 def test_payment_order_can_be_verified(client) -> None:

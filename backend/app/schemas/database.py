@@ -16,6 +16,13 @@ class UserRow(BaseModel):
     updated_at: datetime
 
 
+class UserProfileInsert(BaseModel):
+    id: UUID
+    email: str | None = None
+    full_name: str | None = None
+    plan_type: str = "free"
+
+
 class TemplateRow(BaseModel):
     id: UUID
     slug: str
@@ -42,6 +49,7 @@ class PresentationRow(BaseModel):
         default=True,
         validation_alias=AliasChoices("watermark_applied", "has_watermark"),
     )
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -56,6 +64,7 @@ class PresentationInsert(BaseModel):
     content: dict[str, Any] | list[Any] = Field(default_factory=dict)
     file_url: str | None = None
     watermark_applied: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class UsageLogRow(BaseModel):

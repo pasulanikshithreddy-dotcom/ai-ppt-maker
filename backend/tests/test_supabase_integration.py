@@ -10,7 +10,7 @@ from pydantic import SecretStr
 from app.config.settings import Settings
 from app.integrations.supabase import SupabaseClientFactory
 from app.repositories.supabase_read_repository import SupabaseReadRepository
-from app.schemas.database import PresentationInsert
+from app.schemas.database import PresentationInsert, UserProfileInsert
 from app.services.supabase_service import SupabaseService
 
 
@@ -59,6 +59,7 @@ def test_supabase_client_factory_uses_service_role_key(monkeypatch) -> None:
             self.storage = SimpleNamespace(
                 from_=lambda bucket_name: {"bucket": bucket_name}
             )
+            self.auth = {"kind": "auth"}
 
         def table(self, table_name: str):
             return {"table": table_name}
@@ -125,6 +126,7 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
                 "content": {"slides": []},
                 "file_url": "https://cdn.example.com/file.pptx",
                 "has_watermark": False,
+                "metadata": {"source": "web"},
                 "created_at": now.isoformat(),
                 "updated_at": now.isoformat(),
             }
@@ -183,6 +185,7 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
     assert template.slug == "starter"
     assert presentations[0].topic == "AI PPT"
     assert presentations[0].watermark_applied is False
+    assert presentations[0].metadata["source"] == "web"
     assert usage_log is not None
     assert usage_log.request_count == 1
     assert subscription is not None
@@ -254,17 +257,24 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
         def create_presentation(self, payload):
             return {"created": payload}
 
+        def create_user_profile(self, payload):
+            return {"created_user": payload}
+
     settings = Settings(
         supabase_url="https://example.supabase.co",
         supabase_service_role_key=SecretStr("service-key"),
     )
     service = SupabaseService(settings)
+    service.client_factory = SimpleNamespace(
+        get_client=lambda: SimpleNamespace(auth={"kind": "auth"})
+    )
     service.storage = FakeStorageHelper()
     service.read_repository = FakeRepository()
     service.write_repository = FakeWriteRepository()
     upload_file = Path(__file__).resolve()
 
     assert service.get_storage_client() == {"kind": "storage"}
+    assert service.get_auth_client() == {"kind": "auth"}
     assert service.get_templates_bucket() == {"bucket": "templates"}
     assert service.get_user_by_id("user-id") == "user"
     assert service.get_template_by_slug("starter") == "template"
@@ -275,6 +285,14 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
             storage_path="user-id/notes/deck.pptx",
         )
         == "https://example.supabase.co/storage/v1/object/public/presentations/user-id/notes/deck.pptx"
+    )
+    assert (
+        service.upload_file_bytes(
+            file_bytes=b"%PDF-1.4 fake",
+            storage_path="user-id/pdf/source/report.pdf",
+            content_type="application/pdf",
+        )
+        == "https://example.supabase.co/storage/v1/object/public/presentations/user-id/pdf/source/report.pdf"
     )
     assert service.create_presentation(
         PresentationInsert(
@@ -287,5 +305,14 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
             content={"slides": []},
             file_url="https://example.com/file.pptx",
             watermark_applied=False,
+            metadata={"source_pdf_url": "https://example.com/report.pdf"},
         )
     )["created"].mode == "notes"
+    assert service.create_user_profile(
+        UserProfileInsert(
+            id=UUID("4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"),
+            email="nik@example.com",
+            full_name="Nik",
+            plan_type="free",
+        )
+    )["created_user"].plan_type == "free"

@@ -19,6 +19,7 @@ from app.schemas.database import (
     SubscriptionRow,
     TemplateRow,
     UsageLogRow,
+    UserProfileInsert,
     UserRow,
 )
 from app.utils.runtime import is_secret_configured
@@ -54,6 +55,9 @@ class SupabaseService:
 
     def get_storage_client(self):
         return self.storage.get_client()
+
+    def get_auth_client(self):
+        return self.get_client().auth
 
     def get_storage_bucket(self, bucket_name: str) -> Any:
         return self.storage.get_bucket(bucket_name)
@@ -141,6 +145,9 @@ class SupabaseService:
     def create_presentation(self, payload: PresentationInsert) -> PresentationRow:
         return self.write_repository.create_presentation(payload)
 
+    def create_user_profile(self, payload: UserProfileInsert) -> UserRow:
+        return self.write_repository.create_user_profile(payload)
+
     def upload_presentation_file(
         self,
         *,
@@ -155,6 +162,24 @@ class SupabaseService:
                 "content-type": (
                     "application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 ),
+                "upsert": "true",
+            },
+        )
+        return bucket.get_public_url(storage_path)
+
+    def upload_file_bytes(
+        self,
+        *,
+        file_bytes: bytes,
+        storage_path: str,
+        content_type: str,
+    ) -> str:
+        bucket = self.get_presentations_bucket()
+        bucket.upload(
+            storage_path,
+            file_bytes,
+            {
+                "content-type": content_type,
                 "upsert": "true",
             },
         )

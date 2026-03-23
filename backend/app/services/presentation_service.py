@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import ClassVar
 
 from app.config.settings import Settings
@@ -60,7 +61,7 @@ class PresentationService:
 
     def generate_from_pdf(self, payload: GenerateFromPdfRequest) -> GenerationResult:
         record = self._create_presentation(
-            title=payload.title or "PDF to Deck",
+            title=Path(payload.source_filename).stem or "PDF to Deck",
             source_type=PresentationSource.PDF,
             slide_count=payload.slide_count,
             template_id=payload.template_id,
@@ -71,7 +72,7 @@ class PresentationService:
                 "Summary and recommendations",
             ],
             metadata={
-                "pdf_url": payload.pdf_url,
+                "source_filename": payload.source_filename,
                 "pptx_ready": self.pptx_service.is_configured(),
             },
         )

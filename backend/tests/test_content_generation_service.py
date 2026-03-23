@@ -180,3 +180,39 @@ def test_content_generation_service_rejects_invalid_notes_slide_count() -> None:
             topic="Research synthesis",
             title="Research summary",
         )
+
+
+def test_content_generation_service_generates_pdf_based_presentation() -> None:
+    parsed_response = GeneratedPresentationContent(
+        presentation_title="Annual Report Summary",
+        slides=[
+            PresentationSlide(
+                title="Overview",
+                bullets=["Financial performance improved", "Operational efficiency rose"],
+                speaker_notes=(
+                    "Introduce the PDF summary at a high level before diving "
+                    "into details."
+                ),
+            ),
+            PresentationSlide(
+                title="Key Findings",
+                bullets=["Revenue increased", "Margins expanded"],
+                speaker_notes="Focus on the strongest signals surfaced from the PDF text.",
+            ),
+            PresentationSlide(
+                title="Recommendations",
+                bullets=["Sustain growth bets", "Monitor execution risk"],
+                speaker_notes="Close with action-oriented takeaways grounded in the report.",
+            ),
+        ],
+    )
+    service = ContentGenerationService(FakeOpenAIService(parsed_response))
+
+    result = service.generate_pdf_presentation(
+        extracted_text="Long extracted report text",
+        slide_count=3,
+        source_name="annual-report.pdf",
+    )
+
+    assert result.presentation_title == "Annual Report Summary"
+    assert len(result.slides) == 3

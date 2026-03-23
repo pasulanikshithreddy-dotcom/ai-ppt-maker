@@ -9,11 +9,11 @@ import pytest
 
 from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
 from app.schemas.database import PresentationRow, TemplateRow, UserRow
-from app.schemas.presentation import GenerateFromNotesRequest
-from app.services.notes_generation_service import (
-    NotesGenerationConfigurationError,
-    NotesGenerationPermissionError,
-    NotesGenerationService,
+from app.schemas.presentation import GenerateFromPdfRequest
+from app.services.pdf_generation_service import (
+    PdfGenerationConfigurationError,
+    PdfGenerationPermissionError,
+    PdfGenerationService,
 )
 from app.services.plan_service import PlanService
 
@@ -23,7 +23,7 @@ class FakeContentGenerationService:
         self.response = response
         self.calls: list[dict[str, object]] = []
 
-    def generate_notes_presentation(self, **kwargs) -> GeneratedPresentationContent:
+    def generate_pdf_presentation(self, **kwargs) -> GeneratedPresentationContent:
         self.calls.append(kwargs)
         return self.response
 
@@ -32,14 +32,15 @@ class FakeSupabaseService:
     def __init__(self, *, plan_type: str = "pro", configured: bool = True) -> None:
         self.plan_type = plan_type
         self.configured = configured
-        self.upload_calls: list[dict[str, object]] = []
+        self.upload_bytes_calls: list[dict[str, object]] = []
+        self.upload_pptx_calls: list[dict[str, object]] = []
         self.create_calls: list[object] = []
         self.deleted_paths: list[str] = []
 
     def is_configured(self) -> bool:
         return self.configured
 
-    def get_user_by_id(self, user_id: str) -> UserRow:
+    def get_user_by_id(self, _user_id: str) -> UserRow:
         now = datetime.fromisoformat("2026-03-23T12:00:00+00:00")
         return UserRow(
             id=UUID("4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"),
@@ -65,14 +66,21 @@ class FakeSupabaseService:
             updated_at=now,
         )
 
-    def upload_presentation_file(self, *, local_path: Path, storage_path: str) -> str:
-        self.upload_calls.append(
+    def upload_file_bytes(self, *, file_bytes: bytes, storage_path: str, content_type: str) -> str:
+        self.upload_bytes_calls.append(
             {
-                "local_path": local_path,
+                "file_bytes": file_bytes,
                 "storage_path": storage_path,
+                "content_type": content_type,
             }
         )
-        return "https://example.supabase.co/storage/v1/object/public/presentations/deck.pptx"
+        return "https://example.supabase.co/storage/v1/object/public/presentations/source/report.pdf"
+
+    def upload_presentation_file(self, *, local_path: Path, storage_path: str) -> str:
+        self.upload_pptx_calls.append(
+            {"local_path": local_path, "storage_path": storage_path}
+        )
+        return "https://example.supabase.co/storage/v1/object/public/presentations/generated/report.pptx"
 
     def create_presentation(self, payload) -> PresentationRow:
         self.create_calls.append(payload)
@@ -112,113 +120,119 @@ class FakePptxService:
         return (plan_code or "").lower() not in {"pro", "team"}
 
 
-def test_notes_generation_service_processes_notes_into_saved_presentation(
+def test_pdf_generation_service_processes_uploaded_pdf_into_saved_presentation(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     export_path = tmp_path / "generated-deck.pptx"
     export_path.write_bytes(b"pptx")
     generated_content = GeneratedPresentationContent(
-        presentation_title="Customer Research Summary",
+        presentation_title="Quarterly Report Summary",
         slides=[
             PresentationSlide(
-                title="Context",
-                bullets=["Interview set complete", "Responses were consistent"],
-                speaker_notes="Open with what the notes covered and why the sample is useful.",
+                title="Overview",
+                bullets=["The report was summarized", "Key trends were extracted"],
+                speaker_notes="Introduce the source report and the overall narrative of the deck.",
             ),
             PresentationSlide(
-                title="Insights",
-                bullets=["Speed matters most", "Trust depends on polish"],
-                speaker_notes="Tie the cleaned notes back to the recurring themes.",
+                title="Findings",
+                bullets=["Revenue improved", "Risk remained manageable"],
+                speaker_notes=(
+                    "Explain the most important findings that were preserved "
+                    "from the PDF."
+                ),
             ),
             PresentationSlide(
                 title="Actions",
-                bullets=["Improve onboarding", "Polish exported decks"],
-                speaker_notes="Close with concrete product actions derived from the notes.",
+                bullets=["Double down on wins", "Address known constraints"],
+                speaker_notes=(
+                    "Close with practical actions that follow from the "
+                    "summarized report."
+                ),
             ),
         ],
     )
     content_service = FakeContentGenerationService(generated_content)
     supabase_service = FakeSupabaseService(plan_type="pro")
     pptx_service = FakePptxService(export_path)
-    service = NotesGenerationService(
+    service = PdfGenerationService(
         content_service,
         supabase_service,
         pptx_service,
         PlanService(),
     )
+    monkeypatch.setattr(
+        service,
+        "extract_text_from_pdf",
+        lambda _pdf_bytes: "Readable PDF text from several pages.",
+    )
 
-    result = service.generate_from_notes(
-        GenerateFromNotesRequest(
-            notes=(
-                "Research Summary:\n"
-                "- Users care about speed.\n"
-                "- Users also need polished exports.\n\n"
-                "Recommendations:\n"
-                "Focus onboarding and output quality."
-            ),
-            title="Research Summary",
-            topic="Customer Research",
+    result = service.generate_from_pdf(
+        GenerateFromPdfRequest(
+            source_filename="quarterly-report.pdf",
+            user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e",
             slide_count=3,
             template_id="boardroom_luxe",
-            user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e",
-        )
+        ),
+        pdf_bytes=b"%PDF-1.4 fake",
     )
 
     assert result.queued is False
-    assert result.presentation.title == "Customer Research Summary"
+    assert result.presentation.title == "Quarterly Report Summary"
     assert result.presentation.file_url is not None
-    assert result.presentation.watermark_applied is False
+    assert result.presentation.metadata["source_pdf_url"]
     assert result.content is not None
-    assert result.content.presentation_title == "Customer Research Summary"
-
-    normalized_notes = content_service.calls[0]["normalized_notes"]
-    sections = content_service.calls[0]["sections"]
-    assert "  " not in normalized_notes
-    assert len(sections) >= 2
+    assert result.content.presentation_title == "Quarterly Report Summary"
+    assert supabase_service.upload_bytes_calls[0]["content_type"] == "application/pdf"
+    assert "source" in supabase_service.upload_bytes_calls[0]["storage_path"]
+    assert "generated" in supabase_service.upload_pptx_calls[0]["storage_path"]
+    assert content_service.calls[0]["source_name"] == "quarterly-report.pdf"
     assert pptx_service.export_calls[0]["user_plan"] == "pro"
-    assert supabase_service.upload_calls[0]["local_path"] == export_path
-    assert "notes" in supabase_service.upload_calls[0]["storage_path"]
-    assert supabase_service.create_calls[0].mode == "notes"
-    assert supabase_service.create_calls[0].watermark_applied is False
-    assert supabase_service.create_calls[0].metadata["storage_path"]
+    assert supabase_service.create_calls[0].metadata["source_pdf_url"]
 
 
-def test_notes_generation_service_rejects_free_users(tmp_path: Path) -> None:
+def test_pdf_generation_service_rejects_free_users(tmp_path: Path) -> None:
     export_path = tmp_path / "generated-deck.pptx"
     export_path.write_bytes(b"pptx")
-    service = NotesGenerationService(
+    service = PdfGenerationService(
         FakeContentGenerationService(_build_generated_content()),
         FakeSupabaseService(plan_type="free"),
         FakePptxService(export_path),
         PlanService(),
     )
 
-    with pytest.raises(NotesGenerationPermissionError):
-        service.generate_from_notes(_build_request())
+    with pytest.raises(PdfGenerationPermissionError):
+        service.generate_from_pdf(
+            _build_request(),
+            pdf_bytes=b"%PDF-1.4 fake",
+        )
 
 
-def test_notes_generation_service_requires_supabase_configuration(tmp_path: Path) -> None:
+def test_pdf_generation_service_requires_supabase_configuration(tmp_path: Path) -> None:
     export_path = tmp_path / "generated-deck.pptx"
     export_path.write_bytes(b"pptx")
-    service = NotesGenerationService(
+    service = PdfGenerationService(
         FakeContentGenerationService(_build_generated_content()),
         FakeSupabaseService(plan_type="pro", configured=False),
         FakePptxService(export_path),
         PlanService(),
     )
 
-    with pytest.raises(NotesGenerationConfigurationError):
-        service.generate_from_notes(_build_request())
+    with pytest.raises(PdfGenerationConfigurationError):
+        service.generate_from_pdf(
+            _build_request(),
+            pdf_bytes=b"%PDF-1.4 fake",
+        )
 
 
 def _build_generated_content() -> GeneratedPresentationContent:
     return GeneratedPresentationContent(
-        presentation_title="Research Summary",
+        presentation_title="Report Summary",
         slides=[
             PresentationSlide(
                 title="Overview",
                 bullets=["Point A", "Point B"],
-                speaker_notes="Notes long enough to keep this fake structured response valid.",
+                speaker_notes="Notes long enough to satisfy the structured response schema.",
             ),
             PresentationSlide(
                 title="Findings",
@@ -226,20 +240,18 @@ def _build_generated_content() -> GeneratedPresentationContent:
                 speaker_notes="Second notes block that remains valid for the fake response.",
             ),
             PresentationSlide(
-                title="Next Steps",
+                title="Recommendations",
                 bullets=["Point E", "Point F"],
-                speaker_notes="Final notes block that satisfies the schema requirements here.",
+                speaker_notes="Final notes block that keeps the fake response valid.",
             ),
         ],
     )
 
 
-def _build_request() -> GenerateFromNotesRequest:
-    return GenerateFromNotesRequest(
-        notes="Section one\n\nSection two\n\nSection three with enough detail to validate.",
-        title="Research Summary",
-        topic="Customer Research",
+def _build_request() -> GenerateFromPdfRequest:
+    return GenerateFromPdfRequest(
+        source_filename="report.pdf",
+        user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e",
         slide_count=3,
         template_id="boardroom_luxe",
-        user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e",
     )

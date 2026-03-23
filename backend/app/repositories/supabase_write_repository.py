@@ -5,7 +5,12 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from app.integrations.supabase import SupabaseDatabaseHelper
-from app.schemas.database import PresentationInsert, PresentationRow
+from app.schemas.database import (
+    PresentationInsert,
+    PresentationRow,
+    UserProfileInsert,
+    UserRow,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -21,6 +26,14 @@ class SupabaseWriteRepository:
             .execute()
         )
         return self._fetch_one_response(response, PresentationRow)
+
+    def create_user_profile(self, payload: UserProfileInsert) -> UserRow:
+        response = (
+            self.database.table("users")
+            .insert(payload.model_dump(mode="json"))
+            .execute()
+        )
+        return self._fetch_one_response(response, UserRow)
 
     @staticmethod
     def _fetch_one_response(response: Any, model: type[ModelT]) -> ModelT:

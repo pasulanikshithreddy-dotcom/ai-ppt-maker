@@ -22,11 +22,11 @@ from app.services.content_generation_service import (
     ContentGenerationError,
     ContentGenerationService,
 )
+from app.services.plan_service import PlanAccessError, PlanService
 from app.services.pptx_service import PptxService, PptxTemplateNotFoundError
 from app.services.presentation_service import PresentationService
 from app.services.supabase_service import SupabaseService
 
-PRO_PLAN_CODES = {"pro", "team"}
 BULLET_PREFIX_PATTERN = re.compile(r"^(?:[-*\u2022\u25AA\u25E6\u25CF]+|\d+[.)])\s*")
 WHITESPACE_PATTERN = re.compile(r"[ \t]+")
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
@@ -54,10 +54,12 @@ class NotesGenerationService:
         content_generation_service: ContentGenerationService,
         supabase_service: SupabaseService,
         pptx_service: PptxService,
+        plan_service: PlanService,
     ) -> None:
         self.content_generation_service = content_generation_service
         self.supabase_service = supabase_service
         self.pptx_service = pptx_service
+        self.plan_service = plan_service
 
     def generate_from_notes(self, payload: GenerateFromNotesRequest) -> GenerationResult:
         if not self.supabase_service.is_configured():
@@ -69,10 +71,14 @@ class NotesGenerationService:
         if user is None:
             raise NotesGenerationNotFoundError("User not found.")
 
-        if user.plan_type.strip().lower() not in PRO_PLAN_CODES:
-            raise NotesGenerationPermissionError(
-                "Notes to PPT is available only to Pro users."
+        try:
+            self.plan_service.require_plan(
+                user.plan_type,
+                "pro",
+                feature_name="Notes to PPT",
             )
+        except PlanAccessError as exc:
+            raise NotesGenerationPermissionError(str(exc)) from exc
 
         if self.pptx_service.get_template_definition(payload.template_id) is None:
             raise NotesGenerationNotFoundError("Selected template was not found.")
@@ -130,6 +136,13 @@ class NotesGenerationService:
 
         try:
             template_row = self.supabase_service.get_template_by_slug(payload.template_id)
+            persisted_metadata = {
+                "local_file_path": str(local_path),
+                "storage_path": storage_path,
+                "sections_count": len(sections),
+                "normalized_notes_length": len(normalized_notes),
+                "template_linked_in_db": template_row is not None,
+            }
             saved_presentation = self.supabase_service.create_presentation(
                 PresentationInsert(
                     id=storage_presentation_id,
@@ -141,6 +154,7 @@ class NotesGenerationService:
                     content=content.model_dump(mode="json"),
                     file_url=file_url,
                     watermark_applied=watermark_applied,
+                    metadata=persisted_metadata,
                 )
             )
         except Exception as exc:  # pragma: no cover - defensive persistence boundary
@@ -157,13 +171,7 @@ class NotesGenerationService:
             template_id=payload.template_id,
             watermark_applied=watermark_applied,
             content_preview=[slide.title for slide in content.slides[:4]],
-            metadata={
-                "local_file_path": str(local_path),
-                "storage_path": storage_path,
-                "sections_count": len(sections),
-                "normalized_notes_length": len(normalized_notes),
-                "template_linked_in_db": template_row is not None,
-            },
+            metadata=persisted_metadata,
         )
         self._register_presentation(detail)
 

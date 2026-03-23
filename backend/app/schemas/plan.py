@@ -20,3 +20,5 @@ class PlanSummary(BaseModel):
 class PlanOverview(BaseModel):
     current_plan: PlanSummary
     available_plans: list[PlanSummary]
+    is_paid: bool = False
+    subscription_status: str | None = None

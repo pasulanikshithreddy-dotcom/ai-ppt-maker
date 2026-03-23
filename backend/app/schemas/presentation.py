@@ -40,9 +40,9 @@ class GenerateFromNotesRequest(BaseModel):
 
 
 class GenerateFromPdfRequest(BaseModel):
-    pdf_url: str = Field(min_length=5, max_length=2048)
-    title: str | None = Field(default=None, max_length=120)
-    slide_count: int = Field(default=10, ge=3, le=30)
+    source_filename: str = Field(min_length=1, max_length=255)
+    user_id: str = Field(min_length=3, max_length=120)
+    slide_count: int = Field(default=10, ge=3, le=20)
     template_id: str = Field(default="starter", max_length=80)
 
 
