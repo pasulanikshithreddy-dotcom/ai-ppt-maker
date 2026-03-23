@@ -5,7 +5,6 @@ from app.models.presentation import PresentationRecord, PresentationSource, Pres
 from app.schemas.presentation import (
     GenerateFromNotesRequest,
     GenerateFromPdfRequest,
-    GenerateFromTopicRequest,
     GenerationResult,
     PresentationDetail,
     PresentationListData,
@@ -42,28 +41,6 @@ class PresentationService:
         if record is None:
             return None
         return self._to_detail(record)
-
-    def generate_from_topic(self, payload: GenerateFromTopicRequest) -> GenerationResult:
-        topic = payload.topic.strip()
-        record = self._create_presentation(
-            title=f"{topic.title()} Deck",
-            source_type=PresentationSource.TOPIC,
-            slide_count=payload.slide_count,
-            template_id=payload.template_id,
-            content_preview=[
-                f"Introduction to {topic}",
-                f"Why {topic} matters now",
-                f"Recommended plan for {payload.audience or 'your audience'}",
-                "Next steps and success metrics",
-            ],
-            metadata={
-                "topic": topic,
-                "audience": payload.audience,
-                "tone": payload.tone or "balanced",
-                "openai_configured": self.openai_service.is_configured(),
-            },
-        )
-        return GenerationResult(presentation=self._to_detail(record))
 
     def generate_from_notes(self, payload: GenerateFromNotesRequest) -> GenerationResult:
         note_lines = [line.strip() for line in payload.notes.splitlines() if line.strip()]

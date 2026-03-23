@@ -26,14 +26,6 @@ class PresentationListData(BaseModel):
     total: int
 
 
-class GenerateFromTopicRequest(BaseModel):
-    topic: str = Field(min_length=3, max_length=200)
-    audience: str | None = Field(default=None, max_length=120)
-    tone: str | None = Field(default=None, max_length=60)
-    slide_count: int = Field(default=10, ge=3, le=30)
-    template_id: str = Field(default="starter", max_length=80)
-
-
 class GenerateFromNotesRequest(BaseModel):
     notes: str = Field(min_length=20, max_length=10000)
     title: str | None = Field(default=None, max_length=120)

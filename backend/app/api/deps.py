@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.config.settings import Settings, get_settings
+from app.services.content_generation_service import ContentGenerationService
 from app.services.health_service import HealthService
 from app.services.openai_service import OpenAIService
 from app.services.payment_service import PaymentService
@@ -39,6 +40,10 @@ def get_presentation_service(settings: SettingsDep) -> PresentationService:
         supabase_service=SupabaseService(settings),
         pptx_service=PptxService(settings),
     )
+
+
+def get_content_generation_service(settings: SettingsDep) -> ContentGenerationService:
+    return ContentGenerationService(OpenAIService(settings))
 
 
 def get_template_service(settings: SettingsDep) -> TemplateService:

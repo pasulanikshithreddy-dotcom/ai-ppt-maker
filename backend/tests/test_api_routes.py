@@ -32,27 +32,51 @@ def test_templates_route_returns_full_template_catalog(client) -> None:
     assert "content_columns" in template["layout"]
 
 
-def test_generate_topic_creates_fetchable_presentation(client) -> None:
+def test_generate_topic_returns_structured_presentation_content(monkeypatch, client) -> None:
+    from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
+
+    def fake_generate_topic_presentation(self, _payload):
+        return GeneratedPresentationContent(
+            presentation_title="AI Presentation Workflows",
+            slides=[
+                PresentationSlide(
+                    title="Why AI Presentations Matter",
+                    bullets=["Faster drafting", "More consistent structure"],
+                    speaker_notes="Explain how automation reduces blank-page friction.",
+                ),
+                PresentationSlide(
+                    title="Core Workflow",
+                    bullets=["Start with a topic", "Generate slide-by-slide content"],
+                    speaker_notes="Walk through the end-to-end user journey in practical terms.",
+                ),
+                PresentationSlide(
+                    title="Next Steps",
+                    bullets=["Validate outputs", "Export to PPT"],
+                    speaker_notes="Close with operational improvements and rollout priorities.",
+                ),
+            ],
+        )
+
+    monkeypatch.setattr(
+        "app.services.content_generation_service.ContentGenerationService.generate_topic_presentation",
+        fake_generate_topic_presentation,
+    )
+
     response = client.post(
         "/api/v1/generate/topic",
         json={
             "topic": "AI presentation workflows",
-            "audience": "product teams",
+            "subject": "Productivity",
             "tone": "practical",
-            "slide_count": 7,
-            "template_id": "starter",
+            "slide_count": 3,
         },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    presentation_id = payload["data"]["presentation"]["id"]
-
-    follow_up = client.get(f"/api/v1/presentations/{presentation_id}")
-    follow_up_payload = follow_up.json()
-
-    assert follow_up.status_code == 200
-    assert follow_up_payload["data"]["id"] == presentation_id
+    assert payload["data"]["presentation_title"] == "AI Presentation Workflows"
+    assert len(payload["data"]["slides"]) == 3
+    assert payload["data"]["slides"][0]["bullets"]
 
 
 def test_payment_order_can_be_verified(client) -> None:

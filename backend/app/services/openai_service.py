@@ -1,5 +1,14 @@
+from __future__ import annotations
+
+from typing import TypeVar
+
+from openai import OpenAIError
+from pydantic import BaseModel
+
 from app.config.settings import Settings
 from app.utils.runtime import is_secret_configured
+
+StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
 
 
 class OpenAIService:
@@ -21,3 +30,32 @@ class OpenAIService:
         from openai import OpenAI
 
         return OpenAI(api_key=self.settings.openai_api_key.get_secret_value())
+
+    def parse_chat_completion(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_format: type[StructuredResponseT],
+        temperature: float = 0.7,
+    ) -> StructuredResponseT:
+        try:
+            completion = self.get_client().chat.completions.parse(
+                model=self.settings.openai_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=response_format,
+                temperature=temperature,
+            )
+        except OpenAIError as exc:
+            raise RuntimeError("OpenAI request failed.") from exc
+
+        message = completion.choices[0].message
+        if message.parsed is None:
+            raise ValueError("OpenAI did not return a parsed structured response.")
+
+        if isinstance(message.parsed, BaseModel):
+            return response_format.model_validate(message.parsed.model_dump())
+        return response_format.model_validate(message.parsed)
