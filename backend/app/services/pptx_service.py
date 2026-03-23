@@ -28,6 +28,8 @@ ALIGNMENT_MAP = {
     "right": PP_ALIGN.RIGHT,
 }
 FILENAME_SAFE_PATTERN = re.compile(r"[^a-zA-Z0-9]+")
+WATERMARK_FOOTER_TEXT = "Created with AI PPT Maker"
+PAID_PLAN_CODES = {"pro", "team"}
 
 
 class PptxTemplateNotFoundError(LookupError):
@@ -66,14 +68,21 @@ class PptxService:
         *,
         template_id: str,
         file_stem: str | None = None,
+        user_plan: str | None = "free",
     ) -> Path:
         presentation_content = GeneratedPresentationContent.model_validate(content)
         template = self.get_template_definition(template_id)
         if template is None:
             raise PptxTemplateNotFoundError(f"Template '{template_id}' was not found.")
+        watermark_text = self.get_watermark_text(user_plan)
 
         presentation = self.create_presentation()
-        self._add_cover_slide(presentation, presentation_content.presentation_title, template)
+        self._add_cover_slide(
+            presentation,
+            presentation_content.presentation_title,
+            template,
+            watermark_text=watermark_text,
+        )
         for slide_number, slide_content in enumerate(
             presentation_content.slides,
             start=1,
@@ -83,17 +92,29 @@ class PptxService:
                 slide_content,
                 template,
                 slide_number=slide_number,
+                watermark_text=watermark_text,
             )
 
         output_path = self._build_output_path(file_stem or presentation_content.presentation_title)
         presentation.save(str(output_path))
         return output_path.resolve()
 
+    def should_apply_watermark(self, plan_code: str | None) -> bool:
+        normalized_plan = (plan_code or "free").strip().lower()
+        return normalized_plan not in PAID_PLAN_CODES
+
+    def get_watermark_text(self, plan_code: str | None) -> str | None:
+        if not self.should_apply_watermark(plan_code):
+            return None
+        return WATERMARK_FOOTER_TEXT
+
     def _add_cover_slide(
         self,
         presentation: PptxPresentation,
         title: str,
         template: TemplateDefinition,
+        *,
+        watermark_text: str | None,
     ) -> None:
         slide = presentation.slides.add_slide(self._blank_layout(presentation))
         self._set_slide_background(slide, template.theme.secondary_color)
@@ -142,6 +163,12 @@ class PptxService:
             alignment=template.layout.title_alignment,
         )
         subtitle_frame.paragraphs[0].space_after = Pt(0)
+        self._add_footer_watermark(
+            slide,
+            presentation,
+            template,
+            watermark_text=watermark_text,
+        )
 
     def _add_content_slide(
         self,
@@ -150,6 +177,7 @@ class PptxService:
         template: TemplateDefinition,
         *,
         slide_number: int,
+        watermark_text: str | None,
     ) -> None:
         slide = presentation.slides.add_slide(self._blank_layout(presentation))
         self._set_slide_background(slide, template.theme.secondary_color)
@@ -192,6 +220,12 @@ class PptxService:
                 template,
                 slide_number=slide_number,
             )
+        self._add_footer_watermark(
+            slide,
+            presentation,
+            template,
+            watermark_text=watermark_text,
+        )
 
     @staticmethod
     def _blank_layout(presentation: PptxPresentation):
@@ -364,6 +398,35 @@ class PptxService:
             color_hex=template.theme.primary_color,
             alignment="right",
             bold=True,
+        )
+
+    def _add_footer_watermark(
+        self,
+        slide: Slide,
+        presentation: PptxPresentation,
+        template: TemplateDefinition,
+        *,
+        watermark_text: str | None,
+    ) -> None:
+        if not watermark_text:
+            return
+
+        watermark_shape = slide.shapes.add_textbox(
+            Inches(2.1),
+            presentation.slide_height - Inches(0.52),
+            Inches(8.2),
+            Inches(0.24),
+        )
+        watermark_frame = watermark_shape.text_frame
+        watermark_frame.word_wrap = True
+        watermark_frame.text = watermark_text
+        watermark_frame.paragraphs[0].space_after = Pt(0)
+        self._style_paragraph(
+            watermark_frame.paragraphs[0],
+            font_family=template.theme.font_family,
+            font_size=max(template.theme.body_font_size - 6, 9),
+            color_hex=template.theme.primary_color,
+            alignment="center",
         )
 
     def _build_output_path(self, file_stem: str) -> Path:

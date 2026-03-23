@@ -82,9 +82,49 @@ def test_pptx_service_exports_structured_json_to_local_file(tmp_path: Path) -> N
     cover_run = cover_title_shape.text_frame.paragraphs[0].runs[0]
     assert cover_run.font.name == "Aptos"
     assert round(cover_run.font.size.pt) == 34
+    assert _slide_contains_text(presentation.slides[0], "Created with AI PPT Maker")
+    assert _slide_contains_text(presentation.slides[1], "Created with AI PPT Maker")
 
     notes_text = presentation.slides[1].notes_slide.notes_text_frame.text
     assert "speed, structure" in notes_text
+
+
+def test_pptx_service_skips_watermark_for_pro_exports(tmp_path: Path) -> None:
+    settings = Settings(
+        template_catalog_path=_template_catalog_path(),
+        generated_ppt_dir=tmp_path,
+    )
+    service = PptxService(settings)
+    content = GeneratedPresentationContent(
+        presentation_title="Pro Export Example",
+        slides=[
+            PresentationSlide(
+                title="Overview",
+                bullets=["Point A", "Point B"],
+                speaker_notes="Notes long enough to validate for a professional export.",
+            ),
+            PresentationSlide(
+                title="Details",
+                bullets=["Point C", "Point D"],
+                speaker_notes="More speaker notes that keep the structured payload valid.",
+            ),
+            PresentationSlide(
+                title="Wrap Up",
+                bullets=["Point E", "Point F"],
+                speaker_notes="Final notes block for the pro-plan watermark check.",
+            ),
+        ],
+    )
+
+    output_path = service.export_presentation(
+        content,
+        template_id="boardroom_luxe",
+        user_plan="pro",
+    )
+
+    presentation = Presentation(str(output_path))
+    assert not _slide_contains_text(presentation.slides[0], "Created with AI PPT Maker")
+    assert not _slide_contains_text(presentation.slides[1], "Created with AI PPT Maker")
 
 
 def test_pptx_service_rejects_unknown_template(tmp_path: Path) -> None:
@@ -120,3 +160,7 @@ def test_pptx_service_rejects_unknown_template(tmp_path: Path) -> None:
 
 def _template_catalog_path() -> Path:
     return Path(__file__).resolve().parents[1] / "assets" / "templates" / "catalog.json"
+
+
+def _slide_contains_text(slide, text: str) -> bool:
+    return any(getattr(shape, "text", None) == text for shape in slide.shapes)

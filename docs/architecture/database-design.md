@@ -29,7 +29,7 @@ This database design targets Supabase Postgres and keeps the first version small
 - Stores generated deck metadata plus the generated `content` JSON.
 - `mode` distinguishes topic, notes, and PDF generation flows.
 - `file_url` points to the exported file in storage.
-- `has_watermark` supports free-plan export restrictions.
+- `watermark_applied` stores whether the exported deck included the free-plan footer watermark.
 
 ### `usage_logs`
 

@@ -28,6 +28,7 @@ class PresentationRecord:
     template_id: str = "starter"
     presentation_id: str = field(default_factory=lambda: new_id("pres"))
     status: PresentationStatus = PresentationStatus.QUEUED
+    watermark_applied: bool = True
     created_at: datetime = field(default_factory=utc_now)
     content_preview: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)

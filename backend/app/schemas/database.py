@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class UserRow(BaseModel):
@@ -38,7 +38,10 @@ class PresentationRow(BaseModel):
     topic: str | None = None
     content: dict[str, Any] | list[Any] = Field(default_factory=dict)
     file_url: str | None = None
-    has_watermark: bool = False
+    watermark_applied: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("watermark_applied", "has_watermark"),
+    )
     created_at: datetime
     updated_at: datetime
 

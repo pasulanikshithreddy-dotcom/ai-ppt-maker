@@ -79,6 +79,32 @@ def test_generate_topic_returns_structured_presentation_content(monkeypatch, cli
     assert payload["data"]["slides"][0]["bullets"]
 
 
+def test_generation_modes_return_watermark_flag_for_free_exports(client) -> None:
+    notes_response = client.post(
+        "/api/v1/generate/notes",
+        json={
+            "notes": "Problem framing\nSolution framing\nWorkflow details\nClosing summary",
+            "title": "Notes Draft",
+            "slide_count": 4,
+            "template_id": "academic_clean",
+        },
+    )
+    pdf_response = client.post(
+        "/api/v1/generate/pdf",
+        json={
+            "pdf_url": "https://example.com/source.pdf",
+            "title": "PDF Draft",
+            "slide_count": 4,
+            "template_id": "modern_minimal",
+        },
+    )
+
+    assert notes_response.status_code == 200
+    assert pdf_response.status_code == 200
+    assert notes_response.json()["data"]["presentation"]["watermark_applied"] is True
+    assert pdf_response.json()["data"]["presentation"]["watermark_applied"] is True
+
+
 def test_payment_order_can_be_verified(client) -> None:
     create_response = client.post(
         "/api/v1/payments/create-order",

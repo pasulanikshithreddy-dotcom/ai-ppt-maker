@@ -12,6 +12,7 @@ class PresentationSummary(BaseModel):
     source_type: PresentationSource
     status: PresentationStatus
     slide_count: int
+    watermark_applied: bool
     created_at: datetime
 
 

@@ -173,6 +173,7 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
     assert user.plan_type == "pro"
     assert templates[0].config["theme"] == "clean"
     assert presentations[0].topic == "AI PPT"
+    assert presentations[0].watermark_applied is False
     assert usage_log is not None
     assert usage_log.request_count == 1
     assert subscription is not None

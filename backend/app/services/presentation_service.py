@@ -87,18 +87,27 @@ class PresentationService:
         content_preview: list[str],
         metadata: dict[str, object],
         status: PresentationStatus = PresentationStatus.QUEUED,
+        plan_code: str = "free",
+        watermark_applied: bool | None = None,
     ) -> PresentationRecord:
+        resolved_watermark_applied = (
+            watermark_applied
+            if watermark_applied is not None
+            else self.pptx_service.should_apply_watermark(plan_code)
+        )
         record = PresentationRecord(
             title=title,
             source_type=source_type,
             slide_count=slide_count,
             template_id=template_id,
             status=status,
+            watermark_applied=resolved_watermark_applied,
             content_preview=content_preview,
             metadata={
                 **metadata,
                 "supabase_configured": self.supabase_service.is_configured(),
                 "output_dir": str(self.settings.generated_ppt_dir),
+                "watermark_applied": resolved_watermark_applied,
             },
         )
         self._presentations[record.presentation_id] = record
@@ -121,6 +130,7 @@ class PresentationService:
                 "Success metrics",
             ],
             metadata={"seeded": True},
+            watermark_applied=False,
         )
         self._create_presentation(
             title="Investor Update",
@@ -135,6 +145,7 @@ class PresentationService:
                 "Funding use of proceeds",
             ],
             metadata={"seeded": True},
+            watermark_applied=False,
         )
         self.__class__._seeded = True
 
@@ -154,6 +165,7 @@ class PresentationService:
             source_type=record.source_type,
             status=record.status,
             slide_count=record.slide_count,
+            watermark_applied=record.watermark_applied,
             created_at=record.created_at,
         )
 
@@ -165,6 +177,7 @@ class PresentationService:
             source_type=record.source_type,
             status=record.status,
             slide_count=record.slide_count,
+            watermark_applied=record.watermark_applied,
             created_at=record.created_at,
             template_id=record.template_id,
             content_preview=record.content_preview,
