@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +12,9 @@ from app.integrations.supabase import (
     SupabaseStorageHelper,
 )
 from app.repositories.supabase_read_repository import SupabaseReadRepository
+from app.repositories.supabase_write_repository import SupabaseWriteRepository
 from app.schemas.database import (
+    PresentationInsert,
     PresentationRow,
     SubscriptionRow,
     TemplateRow,
@@ -28,6 +31,7 @@ class SupabaseService:
         self.database = SupabaseDatabaseHelper(self.client_factory)
         self.storage = SupabaseStorageHelper(self.client_factory)
         self.read_repository = SupabaseReadRepository(self.database)
+        self.write_repository = SupabaseWriteRepository(self.database)
 
     def is_configured(self) -> bool:
         return bool(self.settings.supabase_url) and is_secret_configured(
@@ -75,6 +79,9 @@ class SupabaseService:
             pro_only=pro_only,
             limit=limit,
         )
+
+    def get_template_by_slug(self, slug: str) -> TemplateRow | None:
+        return self.read_repository.get_template_by_slug(slug)
 
     def list_presentations(
         self,
@@ -130,3 +137,28 @@ class SupabaseService:
         limit: int = 20,
     ) -> list[SubscriptionRow]:
         return self.read_repository.list_subscriptions(user_id=user_id, limit=limit)
+
+    def create_presentation(self, payload: PresentationInsert) -> PresentationRow:
+        return self.write_repository.create_presentation(payload)
+
+    def upload_presentation_file(
+        self,
+        *,
+        local_path: Path,
+        storage_path: str,
+    ) -> str:
+        bucket = self.get_presentations_bucket()
+        bucket.upload(
+            storage_path,
+            local_path,
+            {
+                "content-type": (
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                ),
+                "upsert": "true",
+            },
+        )
+        return bucket.get_public_url(storage_path)
+
+    def delete_presentation_file(self, storage_path: str) -> None:
+        self.get_presentations_bucket().remove([storage_path])

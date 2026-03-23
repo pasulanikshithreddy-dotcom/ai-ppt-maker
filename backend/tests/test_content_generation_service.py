@@ -109,3 +109,74 @@ def test_content_generation_service_requires_openai_config() -> None:
 
     with pytest.raises(ContentGenerationConfigurationError):
         service.generate_topic_presentation(payload)
+
+
+def test_content_generation_service_generates_notes_based_presentation() -> None:
+    parsed_response = GeneratedPresentationContent(
+        presentation_title="Normalized Research Notes",
+        slides=[
+            PresentationSlide(
+                title="Overview",
+                bullets=["Notes were cleaned", "Sections were identified"],
+                speaker_notes=(
+                    "Explain how preprocessing makes the notes easier to turn "
+                    "into slides."
+                ),
+            ),
+            PresentationSlide(
+                title="Themes",
+                bullets=["Speed matters most", "Trust needs visible polish"],
+                speaker_notes="Summarize the strongest patterns that came out of the notes.",
+            ),
+            PresentationSlide(
+                title="Next Steps",
+                bullets=["Export to PPTX", "Share through storage"],
+                speaker_notes="Close on the immediate product workflow after generation.",
+            ),
+        ],
+    )
+    service = ContentGenerationService(FakeOpenAIService(parsed_response))
+
+    result = service.generate_notes_presentation(
+        normalized_notes="Section A\n\nSection B",
+        sections=["Section A", "Section B"],
+        slide_count=3,
+        topic="Research synthesis",
+        title="Research summary",
+    )
+
+    assert result.presentation_title == "Normalized Research Notes"
+    assert len(result.slides) == 3
+
+
+def test_content_generation_service_rejects_invalid_notes_slide_count() -> None:
+    parsed_response = GeneratedPresentationContent(
+        presentation_title="Short Deck",
+        slides=[
+            PresentationSlide(
+                title="Only One",
+                bullets=["One", "Two"],
+                speaker_notes="This is intentionally too short for the requested notes output.",
+            ),
+            PresentationSlide(
+                title="Only Two",
+                bullets=["Three", "Four"],
+                speaker_notes="Still valid slide content, but the slide count is wrong overall.",
+            ),
+            PresentationSlide(
+                title="Only Three",
+                bullets=["Five", "Six"],
+                speaker_notes="The service should reject this when four slides are required.",
+            ),
+        ],
+    )
+    service = ContentGenerationService(FakeOpenAIService(parsed_response))
+
+    with pytest.raises(ContentGenerationError):
+        service.generate_notes_presentation(
+            normalized_notes="Section A\n\nSection B",
+            sections=["Section A", "Section B"],
+            slide_count=4,
+            topic="Research synthesis",
+            title="Research summary",
+        )

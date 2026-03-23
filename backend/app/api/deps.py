@@ -5,6 +5,7 @@ from fastapi import Depends
 from app.config.settings import Settings, get_settings
 from app.services.content_generation_service import ContentGenerationService
 from app.services.health_service import HealthService
+from app.services.notes_generation_service import NotesGenerationService
 from app.services.openai_service import OpenAIService
 from app.services.payment_service import PaymentService
 from app.services.plan_service import PlanService
@@ -44,6 +45,14 @@ def get_presentation_service(settings: SettingsDep) -> PresentationService:
 
 def get_content_generation_service(settings: SettingsDep) -> ContentGenerationService:
     return ContentGenerationService(OpenAIService(settings))
+
+
+def get_notes_generation_service(settings: SettingsDep) -> NotesGenerationService:
+    return NotesGenerationService(
+        content_generation_service=ContentGenerationService(OpenAIService(settings)),
+        supabase_service=SupabaseService(settings),
+        pptx_service=PptxService(settings),
+    )
 
 
 def get_template_service(settings: SettingsDep) -> TemplateService:

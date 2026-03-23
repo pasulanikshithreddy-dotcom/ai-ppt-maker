@@ -46,6 +46,18 @@ class PresentationRow(BaseModel):
     updated_at: datetime
 
 
+class PresentationInsert(BaseModel):
+    id: UUID
+    user_id: UUID
+    template_id: UUID | None = None
+    mode: str
+    status: str
+    topic: str | None = None
+    content: dict[str, Any] | list[Any] = Field(default_factory=dict)
+    file_url: str | None = None
+    watermark_applied: bool = True
+
+
 class UsageLogRow(BaseModel):
     id: UUID
     user_id: UUID

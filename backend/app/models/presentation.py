@@ -26,6 +26,8 @@ class PresentationRecord:
     source_type: PresentationSource
     slide_count: int
     template_id: str = "starter"
+    topic: str | None = None
+    file_url: str | None = None
     presentation_id: str = field(default_factory=lambda: new_id("pres"))
     status: PresentationStatus = PresentationStatus.QUEUED
     watermark_applied: bool = True

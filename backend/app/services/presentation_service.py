@@ -157,6 +157,10 @@ class PresentationService:
             reverse=True,
         )
 
+    @classmethod
+    def register_record(cls, record: PresentationRecord) -> None:
+        cls._presentations[record.presentation_id] = record
+
     @staticmethod
     def _to_summary(record: PresentationRecord) -> PresentationSummary:
         return PresentationSummary(
@@ -174,6 +178,8 @@ class PresentationService:
         return PresentationDetail(
             id=record.presentation_id,
             title=record.title,
+            topic=record.topic,
+            file_url=record.file_url,
             source_type=record.source_type,
             status=record.status,
             slide_count=record.slide_count,

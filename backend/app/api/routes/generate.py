@@ -2,7 +2,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_content_generation_service, get_presentation_service
+from app.api.deps import (
+    get_content_generation_service,
+    get_notes_generation_service,
+    get_presentation_service,
+)
 from app.schemas.common import ApiResponse
 from app.schemas.content_generation import (
     GeneratedPresentationContent,
@@ -18,6 +22,13 @@ from app.services.content_generation_service import (
     ContentGenerationError,
     ContentGenerationService,
 )
+from app.services.notes_generation_service import (
+    NotesGenerationConfigurationError,
+    NotesGenerationError,
+    NotesGenerationNotFoundError,
+    NotesGenerationPermissionError,
+    NotesGenerationService,
+)
 from app.services.presentation_service import PresentationService
 
 router = APIRouter()
@@ -25,6 +36,10 @@ PresentationServiceDep = Annotated[PresentationService, Depends(get_presentation
 ContentGenerationServiceDep = Annotated[
     ContentGenerationService,
     Depends(get_content_generation_service),
+]
+NotesGenerationServiceDep = Annotated[
+    NotesGenerationService,
+    Depends(get_notes_generation_service),
 ]
 
 
@@ -59,11 +74,22 @@ async def generate_from_topic(
 )
 async def generate_from_notes(
     payload: GenerateFromNotesRequest,
-    presentation_service: PresentationServiceDep,
+    notes_generation_service: NotesGenerationServiceDep,
 ) -> ApiResponse[GenerationResult]:
+    try:
+        result = notes_generation_service.generate_from_notes(payload)
+    except NotesGenerationConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except NotesGenerationPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except NotesGenerationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except NotesGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     return ApiResponse(
-        message="Notes generation request accepted.",
-        data=presentation_service.generate_from_notes(payload),
+        message="Notes presentation generated successfully.",
+        data=result,
     )
 
 

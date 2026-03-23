@@ -45,6 +45,15 @@ class SupabaseReadRepository:
             query = query.eq("is_pro_only", pro_only)
         return self._fetch_many(query, TemplateRow)
 
+    def get_template_by_slug(self, slug: str) -> TemplateRow | None:
+        query = (
+            self.database.table("templates")
+            .select("*")
+            .eq("slug", slug)
+            .maybe_single()
+        )
+        return self._fetch_one(query, TemplateRow)
+
     def list_presentations(
         self,
         *,

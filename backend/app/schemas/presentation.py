@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.models.presentation import PresentationSource, PresentationStatus
+from app.schemas.content_generation import GeneratedPresentationContent
 
 
 class PresentationSummary(BaseModel):
@@ -18,6 +19,8 @@ class PresentationSummary(BaseModel):
 
 class PresentationDetail(PresentationSummary):
     template_id: str
+    topic: str | None = None
+    file_url: str | None = None
     content_preview: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -30,7 +33,9 @@ class PresentationListData(BaseModel):
 class GenerateFromNotesRequest(BaseModel):
     notes: str = Field(min_length=20, max_length=10000)
     title: str | None = Field(default=None, max_length=120)
-    slide_count: int = Field(default=10, ge=3, le=30)
+    topic: str | None = Field(default=None, max_length=120)
+    user_id: str = Field(min_length=3, max_length=120)
+    slide_count: int = Field(default=10, ge=3, le=20)
     template_id: str = Field(default="starter", max_length=80)
 
 
@@ -44,3 +49,4 @@ class GenerateFromPdfRequest(BaseModel):
 class GenerationResult(BaseModel):
     queued: bool = True
     presentation: PresentationDetail
+    content: GeneratedPresentationContent | None = None

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from types import SimpleNamespace
+from uuid import UUID
 
 from pydantic import SecretStr
 
 from app.config.settings import Settings
 from app.integrations.supabase import SupabaseClientFactory
 from app.repositories.supabase_read_repository import SupabaseReadRepository
+from app.schemas.database import PresentationInsert
 from app.services.supabase_service import SupabaseService
 
 
@@ -31,6 +34,9 @@ class FakeQuery:
         return self
 
     def in_(self, *_args, **_kwargs):
+        return self
+
+    def insert(self, *_args, **_kwargs):
         return self
 
     def execute(self):
@@ -157,6 +163,7 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
 
     user = repository.get_user_by_id("4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e")
     templates = repository.list_templates()
+    template = repository.get_template_by_slug("starter")
     presentations = repository.list_presentations(
         user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"
     )
@@ -172,6 +179,8 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
     assert user is not None
     assert user.plan_type == "pro"
     assert templates[0].config["theme"] == "clean"
+    assert template is not None
+    assert template.slug == "starter"
     assert presentations[0].topic == "AI PPT"
     assert presentations[0].watermark_applied is False
     assert usage_log is not None
@@ -181,7 +190,26 @@ def test_supabase_read_repository_returns_typed_rows() -> None:
 
 
 def test_supabase_service_exposes_read_and_storage_helpers() -> None:
+    class FakeBucket:
+        def __init__(self) -> None:
+            self.upload_calls = []
+            self.removed = []
+
+        def upload(self, path, file, file_options):
+            self.upload_calls.append(
+                {"path": path, "file": file, "file_options": file_options}
+            )
+
+        def get_public_url(self, path: str):
+            return f"https://example.supabase.co/storage/v1/object/public/presentations/{path}"
+
+        def remove(self, paths):
+            self.removed.extend(paths)
+
     class FakeStorageHelper:
+        def __init__(self) -> None:
+            self.bucket = FakeBucket()
+
         def get_client(self):
             return {"kind": "storage"}
 
@@ -189,7 +217,7 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
             return {"bucket": bucket_name}
 
         def get_presentations_bucket(self):
-            return {"bucket": "presentations"}
+            return self.bucket
 
         def get_templates_bucket(self):
             return {"bucket": "templates"}
@@ -200,6 +228,9 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
 
         def list_templates(self, **_kwargs):
             return ["template"]
+
+        def get_template_by_slug(self, _slug):
+            return "template"
 
         def list_presentations(self, **_kwargs):
             return ["presentation"]
@@ -219,6 +250,10 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
         def list_subscriptions(self, **_kwargs):
             return ["subscription"]
 
+    class FakeWriteRepository:
+        def create_presentation(self, payload):
+            return {"created": payload}
+
     settings = Settings(
         supabase_url="https://example.supabase.co",
         supabase_service_role_key=SecretStr("service-key"),
@@ -226,8 +261,31 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
     service = SupabaseService(settings)
     service.storage = FakeStorageHelper()
     service.read_repository = FakeRepository()
+    service.write_repository = FakeWriteRepository()
+    upload_file = Path(__file__).resolve()
 
     assert service.get_storage_client() == {"kind": "storage"}
     assert service.get_templates_bucket() == {"bucket": "templates"}
     assert service.get_user_by_id("user-id") == "user"
+    assert service.get_template_by_slug("starter") == "template"
     assert service.list_subscriptions(user_id="user-id") == ["subscription"]
+    assert (
+        service.upload_presentation_file(
+            local_path=upload_file,
+            storage_path="user-id/notes/deck.pptx",
+        )
+        == "https://example.supabase.co/storage/v1/object/public/presentations/user-id/notes/deck.pptx"
+    )
+    assert service.create_presentation(
+        PresentationInsert(
+            id=UUID("54a6a67b-3961-4280-a11b-730afb28da1b"),
+            user_id=UUID("4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"),
+            template_id=None,
+            mode="notes",
+            status="completed",
+            topic="Research Summary",
+            content={"slides": []},
+            file_url="https://example.com/file.pptx",
+            watermark_applied=False,
+        )
+    )["created"].mode == "notes"

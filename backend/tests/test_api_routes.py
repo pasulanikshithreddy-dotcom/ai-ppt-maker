@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 def test_public_get_routes_return_consistent_envelopes(client) -> None:
     for endpoint in (
         "/api/v1/health",
@@ -79,16 +82,76 @@ def test_generate_topic_returns_structured_presentation_content(monkeypatch, cli
     assert payload["data"]["slides"][0]["bullets"]
 
 
-def test_generation_modes_return_watermark_flag_for_free_exports(client) -> None:
+def test_generate_notes_returns_saved_presentation_and_content(monkeypatch, client) -> None:
+    from app.models.presentation import PresentationSource, PresentationStatus
+    from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
+    from app.schemas.presentation import GenerationResult, PresentationDetail
+
+    def fake_generate_from_notes(self, _payload):
+        return GenerationResult(
+            queued=False,
+            presentation=PresentationDetail(
+                id="d3d25f3e-64f7-4c8c-b7cd-412a6b3a9990",
+                title="Customer Research Summary",
+                topic="Customer Research",
+                file_url="https://example.supabase.co/storage/v1/object/public/presentations/file.pptx",
+                source_type=PresentationSource.NOTES,
+                status=PresentationStatus.COMPLETED,
+                slide_count=3,
+                watermark_applied=False,
+                created_at=datetime.fromisoformat("2026-03-23T12:00:00+00:00"),
+                template_id="boardroom_luxe",
+                content_preview=["Context", "Insights", "Actions"],
+                metadata={"storage_path": "user_1/notes/file.pptx"},
+            ),
+            content=GeneratedPresentationContent(
+                presentation_title="Customer Research Summary",
+                slides=[
+                    PresentationSlide(
+                        title="Context",
+                        bullets=["Interviews completed", "Themes were consistent"],
+                        speaker_notes="Open with the overall scope and reliability of the notes.",
+                    ),
+                    PresentationSlide(
+                        title="Insights",
+                        bullets=["Users value speed", "Clarity improves adoption"],
+                        speaker_notes="Tie the evidence back to product opportunities.",
+                    ),
+                    PresentationSlide(
+                        title="Actions",
+                        bullets=["Prioritize onboarding", "Refine export polish"],
+                        speaker_notes="Close with practical product follow-up actions.",
+                    ),
+                ],
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.notes_generation_service.NotesGenerationService.generate_from_notes",
+        fake_generate_from_notes,
+    )
+
     notes_response = client.post(
         "/api/v1/generate/notes",
         json={
             "notes": "Problem framing\nSolution framing\nWorkflow details\nClosing summary",
             "title": "Notes Draft",
+            "topic": "Customer Research",
+            "user_id": "user_1",
             "slide_count": 4,
-            "template_id": "academic_clean",
+            "template_id": "boardroom_luxe",
         },
     )
+
+    assert notes_response.status_code == 200
+    payload = notes_response.json()
+    assert payload["data"]["queued"] is False
+    assert payload["data"]["presentation"]["watermark_applied"] is False
+    assert payload["data"]["presentation"]["file_url"]
+    assert payload["data"]["content"]["presentation_title"] == "Customer Research Summary"
+
+
+def test_generate_pdf_returns_watermark_flag_for_free_exports(client) -> None:
     pdf_response = client.post(
         "/api/v1/generate/pdf",
         json={
@@ -99,9 +162,7 @@ def test_generation_modes_return_watermark_flag_for_free_exports(client) -> None
         },
     )
 
-    assert notes_response.status_code == 200
     assert pdf_response.status_code == 200
-    assert notes_response.json()["data"]["presentation"]["watermark_applied"] is True
     assert pdf_response.json()["data"]["presentation"]["watermark_applied"] is True
 
 
