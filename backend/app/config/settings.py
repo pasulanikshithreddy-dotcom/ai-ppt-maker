@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     docs_enabled: bool = True
 
-    cors_allowed_origins: list[str] = Field(
+    # Keep this env-backed field permissive so deployment providers can supply
+    # either JSON arrays or comma-separated strings without breaking startup.
+    cors_allowed_origins: Any = Field(
         default_factory=lambda: DEFAULT_CORS_ALLOWED_ORIGINS.copy()
     )
     cors_allow_credentials: bool = True
@@ -74,6 +76,10 @@ class Settings(BaseSettings):
             return [str(item).strip() for item in value if str(item).strip()]
 
         raise TypeError("Unsupported CORS origin format")
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        return cast(list[str], self.cors_allowed_origins)
 
 
 @lru_cache
