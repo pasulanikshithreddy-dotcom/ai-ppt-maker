@@ -13,15 +13,16 @@ class PresentationSummary(BaseModel):
     source_type: PresentationSource
     status: PresentationStatus
     slide_count: int
+    template_id: str
+    template_name: str | None = None
+    topic: str | None = None
+    file_url: str | None = None
     watermark_applied: bool
     created_at: datetime
+    content_preview: list[str] = Field(default_factory=list)
 
 
 class PresentationDetail(PresentationSummary):
-    template_id: str
-    topic: str | None = None
-    file_url: str | None = None
-    content_preview: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -37,6 +38,15 @@ class GenerateFromNotesRequest(BaseModel):
     user_id: str = Field(min_length=3, max_length=120)
     slide_count: int = Field(default=10, ge=3, le=20)
     template_id: str = Field(default="starter", max_length=80)
+
+
+class GenerateFromTopicRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=200)
+    subject: str = Field(min_length=2, max_length=120)
+    slide_count: int = Field(default=10, ge=3, le=20)
+    tone: str = Field(min_length=2, max_length=60)
+    user_id: str = Field(min_length=3, max_length=120)
+    template_id: str = Field(default="academic_clean", max_length=80)
 
 
 class GenerateFromPdfRequest(BaseModel):

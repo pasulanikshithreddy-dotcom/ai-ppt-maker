@@ -87,7 +87,8 @@ class PdfGenerationService:
         except PlanAccessError as exc:
             raise PdfGenerationPermissionError(str(exc)) from exc
 
-        if self.pptx_service.get_template_definition(payload.template_id) is None:
+        template_definition = self.pptx_service.get_template_definition(payload.template_id)
+        if template_definition is None:
             raise PdfGenerationNotFoundError("Selected template was not found.")
 
         presentation_id = uuid4()
@@ -138,6 +139,8 @@ class PdfGenerationService:
                 "generated_pptx_path": generated_ppt_storage_path,
                 "local_pptx_path": str(local_pptx_path),
                 "extracted_text_length": len(extracted_text),
+                "requested_template_id": payload.template_id,
+                "template_name": template_definition.name,
                 "template_linked_in_db": template_row is not None,
             }
             saved_presentation = self.supabase_service.create_presentation(
@@ -175,6 +178,7 @@ class PdfGenerationService:
             file_url=generated_ppt_url,
             slide_count=len(content.slides),
             template_id=payload.template_id,
+            template_name=template_definition.name,
             watermark_applied=watermark_applied,
             content_preview=[slide.title for slide in content.slides[:4]],
             metadata=persisted_metadata,
@@ -282,6 +286,7 @@ class PdfGenerationService:
         file_url: str,
         slide_count: int,
         template_id: str,
+        template_name: str,
         watermark_applied: bool,
         content_preview: list[str],
         metadata: dict[str, object],
@@ -297,6 +302,7 @@ class PdfGenerationService:
             watermark_applied=watermark_applied,
             created_at=created_at,
             template_id=template_id,
+            template_name=template_name,
             content_preview=content_preview,
             metadata=metadata,
         )

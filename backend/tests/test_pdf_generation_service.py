@@ -110,7 +110,7 @@ class FakePptxService:
         self.export_calls: list[dict[str, object]] = []
 
     def get_template_definition(self, template_id: str):
-        return SimpleNamespace(id=template_id)
+        return SimpleNamespace(id=template_id, name="Boardroom Luxe", is_pro=True)
 
     def export_presentation(self, content, **kwargs) -> Path:
         self.export_calls.append({"content": content, **kwargs})

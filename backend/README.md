@@ -1,39 +1,40 @@
 # AI PPT Maker Backend
 
-This backend is set up as a production-oriented FastAPI service for AI PPT Maker.
+This backend is the source of truth for auth-aware plan checks, AI content generation, PPT export, saved history, and payment upgrades.
 
 ## Included Structure
 
-- `app/api/routes/`: HTTP routes such as the health endpoint
+- `app/api/routes/`: FastAPI route handlers
 - `app/config/`: typed environment-driven settings
-- `app/core/`: app factory and logging setup
+- `app/core/`: app factory and startup wiring
 - `app/integrations/`: reusable third-party client helpers
 - `app/models/`: internal domain models
-- `app/repositories/`: data access helpers and query logic
-- `app/schemas/`: API request and response schemas
-- `app/services/`: integration-facing business logic
-- `app/utils/`: shared helper functions
-- `assets/templates/`: PowerPoint template files for `python-pptx`
-- `storage/presentations/`: generated output location
-- `supabase/migrations/`: SQL schema and future database migrations
-- `tests/`: backend tests
+- `app/repositories/`: Supabase read/write helpers
+- `app/schemas/`: request, response, and database row schemas
+- `app/services/`: business logic for auth, plans, generation, export, and payments
+- `assets/templates/`: PPT template catalog
+- `storage/presentations/`: locally generated PPT files
+- `supabase/migrations/`: SQL schema and follow-up migrations
+- `tests/`: backend test suite
 
-## Integrations Prepared
+## Main Integrations
 
-- Supabase configuration and client bootstrap
-- OpenAI configuration and client bootstrap
-- `python-pptx` setup for generating presentation files
+- Supabase Auth, database, and storage
+- OpenAI structured content generation
+- `python-pptx` export pipeline
+- Razorpay order creation and payment verification
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in the values you need.
+Copy `.env.example` to `.env` and set the required values for:
 
-Supabase integration uses `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SCHEMA`,
-and the storage bucket names defined in `.env.example`.
+- app mode and docs
+- CORS origins
+- Supabase URL, service role key, and bucket names
+- OpenAI API key and model
+- Razorpay key ID, secret, currency, and monthly amount
 
 ## Local Run
-
-From `backend/`:
 
 ```bash
 py -m venv .venv
@@ -41,4 +42,11 @@ py -m venv .venv
 .venv\Scripts\python -m uvicorn app.main:app --reload
 ```
 
-The health check will be available at `GET /api/v1/health`.
+The API health check is available at `GET /api/v1/health`.
+
+## Verification
+
+```bash
+.venv\Scripts\python -m ruff check app tests
+.venv\Scripts\python -m pytest
+```

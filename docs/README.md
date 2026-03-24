@@ -2,9 +2,10 @@
 
 This folder holds the living documentation for AI PPT Maker.
 
-## Suggested Layout
+## Layout
 
-- `architecture/`: system decisions, data flow notes, and technical plans
-- `product/`: feature ideas, roadmap notes, and user experience thinking
+- `architecture/`: data design and technical decisions
+- `deployment/`: production environment variables, hosting steps, and rollout notes
+- `product/`: roadmap and feature thinking
 
 Keep docs short, current, and decision-oriented.

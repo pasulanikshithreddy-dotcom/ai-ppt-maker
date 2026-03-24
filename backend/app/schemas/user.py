@@ -14,7 +14,9 @@ class CurrentUser(BaseModel):
     name: str | None = None
     authenticated: bool = True
     plan_code: str
+    can_use_pro_features: bool = False
     credits_remaining: int | None = None
+    daily_topic_limit: int | None = None
     created_at: datetime | None = None
 
 

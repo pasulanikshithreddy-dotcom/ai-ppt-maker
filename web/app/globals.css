@@ -66,3 +66,21 @@ a {
     radial-gradient(circle at bottom left, rgba(149, 255, 112, 0.12), transparent 30%),
     rgba(7, 13, 24, 0.94);
 }
+
+.surface-muted {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+}
+
+.surface-inset {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(2, 6, 15, 0.45);
+}
+
+.page-grid {
+  background:
+    radial-gradient(circle at top, rgba(10, 204, 255, 0.14), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(149, 255, 112, 0.09), transparent 26%),
+    linear-gradient(180deg, rgba(8, 17, 31, 0.98) 0%, rgba(4, 8, 15, 1) 100%);
+}

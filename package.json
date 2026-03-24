@@ -4,9 +4,11 @@
   "version": "0.1.0",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
+    "dev:mobile": "corepack pnpm --dir mobile dev",
     "dev:web": "corepack pnpm --dir web dev",
     "build:web": "corepack pnpm --dir web build",
     "lint:web": "corepack pnpm --dir web lint",
+    "typecheck:mobile": "corepack pnpm --dir mobile typecheck",
     "typecheck:web": "corepack pnpm --dir web typecheck"
   }
 }

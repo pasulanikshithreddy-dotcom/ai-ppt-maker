@@ -22,8 +22,16 @@ from app.services.presentation_service import PresentationService
 from app.services.profile_service import ProfileService
 from app.services.supabase_service import SupabaseService
 from app.services.template_service import TemplateService
+from app.services.topic_generation_service import TopicGenerationService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+
+def _build_plan_service(settings: Settings) -> PlanService:
+    return PlanService(
+        free_topic_daily_limit=settings.free_topic_daily_limit,
+        pro_monthly_price=max(settings.razorpay_pro_monthly_amount // 100, 1),
+    )
 
 
 def get_openai_service(settings: SettingsDep) -> OpenAIService:
@@ -42,14 +50,14 @@ def get_health_service(settings: SettingsDep) -> HealthService:
     return HealthService(settings)
 
 
-def get_plan_service() -> PlanService:
-    return PlanService()
+def get_plan_service(settings: SettingsDep) -> PlanService:
+    return _build_plan_service(settings)
 
 
 def get_auth_service(settings: SettingsDep) -> AuthService:
     return AuthService(
         supabase_service=SupabaseService(settings),
-        plan_service=PlanService(),
+        plan_service=_build_plan_service(settings),
     )
 
 
@@ -71,7 +79,7 @@ def get_notes_generation_service(settings: SettingsDep) -> NotesGenerationServic
         content_generation_service=ContentGenerationService(OpenAIService(settings)),
         supabase_service=SupabaseService(settings),
         pptx_service=PptxService(settings),
-        plan_service=PlanService(),
+        plan_service=_build_plan_service(settings),
     )
 
 
@@ -80,7 +88,16 @@ def get_pdf_generation_service(settings: SettingsDep) -> PdfGenerationService:
         content_generation_service=ContentGenerationService(OpenAIService(settings)),
         supabase_service=SupabaseService(settings),
         pptx_service=PptxService(settings),
-        plan_service=PlanService(),
+        plan_service=_build_plan_service(settings),
+    )
+
+
+def get_topic_generation_service(settings: SettingsDep) -> TopicGenerationService:
+    return TopicGenerationService(
+        content_generation_service=ContentGenerationService(OpenAIService(settings)),
+        supabase_service=SupabaseService(settings),
+        pptx_service=PptxService(settings),
+        plan_service=_build_plan_service(settings),
     )
 
 
@@ -91,12 +108,16 @@ def get_template_service(settings: SettingsDep) -> TemplateService:
 def get_profile_service(settings: SettingsDep) -> ProfileService:
     return ProfileService(
         supabase_service=SupabaseService(settings),
-        plan_service=PlanService(),
+        plan_service=_build_plan_service(settings),
     )
 
 
-def get_payment_service() -> PaymentService:
-    return PaymentService()
+def get_payment_service(settings: SettingsDep) -> PaymentService:
+    return PaymentService(
+        settings=settings,
+        supabase_service=SupabaseService(settings),
+        plan_service=_build_plan_service(settings),
+    )
 
 
 def get_access_token(

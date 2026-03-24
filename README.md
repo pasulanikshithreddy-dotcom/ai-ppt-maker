@@ -1,6 +1,6 @@
 # AI PPT Maker Monorepo
 
-This repository is organized as a lightweight monorepo for a solo developer building AI PPT Maker across web, mobile, backend, and documentation.
+AI PPT Maker is organized as a solo-developer monorepo with a FastAPI backend, a Next.js web app, an Expo mobile app, and project docs.
 
 ## Structure
 
@@ -17,26 +17,56 @@ This repository is organized as a lightweight monorepo for a solo developer buil
 
 ## What Is Included
 
-- A clean folder layout for each product surface
-- Root workspace files ready for the JavaScript apps (`web` and `mobile`)
-- README files throughout the repo so each area has a clear purpose
-- Git ignore rules for common web, mobile, Python, and editor artifacts
+- FastAPI backend with Supabase, OpenAI, `python-pptx`, usage limits, history, and Razorpay upgrade flow
+- Next.js web app with Supabase auth, plan-aware create flow, history, pricing, and template gating
+- Expo mobile app with Supabase auth, Topic and Notes generation, history, pricing, and profile screens
+- Deployment and architecture docs in `docs/`
 
-## Setup Plan
+## Local Setup
 
-1. Bootstrap the web app inside `web/` with Next.js.
-2. Bootstrap the mobile app inside `mobile/` with Expo.
-3. Create the FastAPI service inside `backend/`.
-4. Add shared conventions for API contracts, environment variables, and deployment.
-5. Expand `docs/` with product notes, architecture decisions, and launch checklists.
+1. Install JavaScript workspace dependencies:
 
-## Scaffolding Note
+   ```bash
+   corepack pnpm install
+   ```
 
-The folders in this repo are intentionally pre-created and documented. When you scaffold the actual apps, add the framework files directly into these folders or generate into a temporary location and merge the results back in.
+2. Backend setup:
 
-## Solo Developer Conventions
+   ```bash
+   cd backend
+   py -m venv .venv
+   .venv\Scripts\python -m pip install -e .[dev]
+   .venv\Scripts\python -m uvicorn app.main:app --reload
+   ```
 
-- Keep app-specific code inside its own folder and avoid cross-project leakage.
-- Document decisions in `docs/architecture/` as the product evolves.
-- Treat the backend as the source of truth for AI orchestration and export jobs.
-- Add shared packages only when duplication becomes real, not preemptively.
+3. Web setup:
+
+   ```bash
+   copy web\.env.example web\.env.local
+   corepack pnpm --dir web dev
+   ```
+
+4. Mobile setup:
+
+   ```bash
+   copy mobile\.env.example mobile\.env
+   corepack pnpm --dir mobile dev
+   ```
+
+## Useful Commands
+
+- `corepack pnpm --dir web lint`
+- `corepack pnpm --dir web typecheck`
+- `corepack pnpm --dir mobile typecheck`
+- `backend\.venv\Scripts\python.exe -m ruff check app tests`
+- `backend\.venv\Scripts\python.exe -m pytest`
+
+## Deployment
+
+Deployment steps and production env docs live in `docs/deployment/README.md`.
+
+## Solo Developer Notes
+
+- Keep the backend as the source of truth for plans, limits, template access, and generation history.
+- Keep web and mobile thin: auth, forms, preview, and download links should call the backend rather than duplicate logic.
+- Capture architecture and deployment decisions in `docs/` as the product evolves.

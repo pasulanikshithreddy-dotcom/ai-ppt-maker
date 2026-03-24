@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "AI PPT Maker",
+    "slug": "ai-ppt-maker-mobile",
+    "scheme": "aipptmaker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "assetBundlePatterns": ["**/*"]
+  }
+}

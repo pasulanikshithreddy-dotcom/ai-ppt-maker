@@ -6,6 +6,7 @@ import pytest
 from app.api.deps import get_current_user_context
 from app.main import app
 from app.schemas.database import UserRow
+from app.schemas.payment import PaymentOrder, VerifyPaymentResult
 from app.schemas.user import AuthenticatedUserContext
 
 TEST_USER_ID = "4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"
@@ -42,7 +43,6 @@ def test_public_get_routes_return_consistent_envelopes(client) -> None:
     for endpoint in (
         "/api/v1/health",
         "/api/v1/templates",
-        "/api/v1/presentations",
     ):
         response = client.get(endpoint)
         payload = response.json()
@@ -77,8 +77,11 @@ def test_authenticated_me_and_plan_routes_return_user_context(
     assert me_payload["data"]["id"] == TEST_USER_ID
     assert me_payload["data"]["plan_code"] == "pro"
     assert me_payload["data"]["authenticated"] is True
+    assert me_payload["data"]["can_use_pro_features"] is True
     assert plan_payload["data"]["current_plan"]["code"] == "pro"
     assert plan_payload["data"]["is_paid"] is True
+    assert plan_payload["data"]["daily_topic_limit"] is None
+    assert plan_payload["data"]["remaining_topic_generations"] is None
     assert any(
         plan["code"] == "pro" and plan["active"] is True
         for plan in plan_payload["data"]["available_plans"]
@@ -102,34 +105,68 @@ def test_templates_route_returns_full_template_catalog(client) -> None:
     assert "content_columns" in template["layout"]
 
 
-def test_generate_topic_returns_structured_presentation_content(monkeypatch, client) -> None:
+def test_generate_topic_returns_saved_presentation_and_content(
+    monkeypatch,
+    client,
+    auth_override,
+) -> None:
+    from app.models.presentation import PresentationSource, PresentationStatus
     from app.schemas.content_generation import GeneratedPresentationContent, PresentationSlide
+    from app.schemas.presentation import GenerationResult, PresentationDetail
 
-    def fake_generate_topic_presentation(self, _payload):
-        return GeneratedPresentationContent(
-            presentation_title="AI Presentation Workflows",
-            slides=[
-                PresentationSlide(
-                    title="Why AI Presentations Matter",
-                    bullets=["Faster drafting", "More consistent structure"],
-                    speaker_notes="Explain how automation reduces blank-page friction.",
-                ),
-                PresentationSlide(
-                    title="Core Workflow",
-                    bullets=["Start with a topic", "Generate slide-by-slide content"],
-                    speaker_notes="Walk through the end-to-end user journey in practical terms.",
-                ),
-                PresentationSlide(
-                    title="Next Steps",
-                    bullets=["Validate outputs", "Export to PPT"],
-                    speaker_notes="Close with operational improvements and rollout priorities.",
-                ),
-            ],
+    auth_override(plan_code="free")
+
+    def fake_generate_from_topic(self, _payload):
+        return GenerationResult(
+            queued=False,
+            presentation=PresentationDetail(
+                id="b3d25f3e-64f7-4c8c-b7cd-412a6b3a8880",
+                title="AI Presentation Workflows",
+                topic="AI presentation workflows",
+                file_url="https://example.supabase.co/storage/v1/object/public/presentations/topic/file.pptx",
+                source_type=PresentationSource.TOPIC,
+                status=PresentationStatus.COMPLETED,
+                slide_count=3,
+                watermark_applied=True,
+                created_at=datetime.fromisoformat("2026-03-23T12:00:00+00:00"),
+                template_id="academic_clean",
+                template_name="Academic Clean",
+                content_preview=[
+                    "Why AI Presentations Matter",
+                    "Core Workflow",
+                    "Next Steps",
+                ],
+                metadata={"remaining_topic_generations": 2},
+            ),
+            content=GeneratedPresentationContent(
+                presentation_title="AI Presentation Workflows",
+                slides=[
+                    PresentationSlide(
+                        title="Why AI Presentations Matter",
+                        bullets=["Faster drafting", "More consistent structure"],
+                        speaker_notes="Explain how automation reduces blank-page friction.",
+                    ),
+                    PresentationSlide(
+                        title="Core Workflow",
+                        bullets=["Start with a topic", "Generate slide-by-slide content"],
+                        speaker_notes=(
+                            "Walk through the end-to-end user journey in practical terms."
+                        ),
+                    ),
+                    PresentationSlide(
+                        title="Next Steps",
+                        bullets=["Validate outputs", "Export to PPT"],
+                        speaker_notes=(
+                            "Close with operational improvements and rollout priorities."
+                        ),
+                    ),
+                ],
+            ),
         )
 
     monkeypatch.setattr(
-        "app.services.content_generation_service.ContentGenerationService.generate_topic_presentation",
-        fake_generate_topic_presentation,
+        "app.services.topic_generation_service.TopicGenerationService.generate_from_topic",
+        fake_generate_from_topic,
     )
 
     response = client.post(
@@ -139,14 +176,19 @@ def test_generate_topic_returns_structured_presentation_content(monkeypatch, cli
             "subject": "Productivity",
             "tone": "practical",
             "slide_count": 3,
+            "user_id": TEST_USER_ID,
+            "template_id": "academic_clean",
         },
+        headers={"Authorization": "Bearer test-token"},
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data"]["presentation_title"] == "AI Presentation Workflows"
-    assert len(payload["data"]["slides"]) == 3
-    assert payload["data"]["slides"][0]["bullets"]
+    assert payload["data"]["presentation"]["title"] == "AI Presentation Workflows"
+    assert payload["data"]["presentation"]["watermark_applied"] is True
+    assert payload["data"]["presentation"]["file_url"]
+    assert payload["data"]["content"]["presentation_title"] == "AI Presentation Workflows"
+    assert len(payload["data"]["content"]["slides"]) == 3
 
 
 def test_generate_notes_returns_saved_presentation_and_content(
@@ -311,10 +353,133 @@ def test_generate_pdf_returns_preview_and_download_url(
     assert payload["data"]["content"]["presentation_title"] == "Uploaded Report Summary"
 
 
-def test_payment_order_can_be_verified(client) -> None:
+def test_presentations_route_returns_current_user_history(
+    monkeypatch,
+    client,
+    auth_override,
+) -> None:
+    from app.models.presentation import PresentationSource, PresentationStatus
+    from app.schemas.presentation import (
+        PresentationDetail,
+        PresentationListData,
+        PresentationSummary,
+    )
+
+    auth_override(plan_code="pro")
+
+    def fake_list_presentations(self, *, user_id):
+        assert user_id == TEST_USER_ID
+        return PresentationListData(
+            items=[
+                PresentationSummary(
+                    id="cc7bfc6f-64f7-4c8c-b7cd-412a6b3a9990",
+                    title="Uploaded Report Summary",
+                    topic="uploaded report",
+                    source_type=PresentationSource.PDF,
+                    status=PresentationStatus.COMPLETED,
+                    slide_count=3,
+                    template_id="boardroom_luxe",
+                    template_name="Boardroom Luxe",
+                    file_url=(
+                        "https://example.supabase.co/storage/v1/object/public/"
+                        "presentations/generated/report.pptx"
+                    ),
+                    watermark_applied=False,
+                    created_at=datetime.fromisoformat("2026-03-23T12:00:00+00:00"),
+                    content_preview=["Overview", "Findings", "Recommendations"],
+                )
+            ],
+            total=1,
+        )
+
+    def fake_get_presentation(self, presentation_id: str, *, user_id):
+        assert presentation_id == "cc7bfc6f-64f7-4c8c-b7cd-412a6b3a9990"
+        assert user_id == TEST_USER_ID
+        return PresentationDetail(
+            id=presentation_id,
+            title="Uploaded Report Summary",
+            topic="uploaded report",
+            source_type=PresentationSource.PDF,
+            status=PresentationStatus.COMPLETED,
+            slide_count=3,
+            template_id="boardroom_luxe",
+            template_name="Boardroom Luxe",
+            file_url=(
+                "https://example.supabase.co/storage/v1/object/public/"
+                "presentations/generated/report.pptx"
+            ),
+            watermark_applied=False,
+            created_at=datetime.fromisoformat("2026-03-23T12:00:00+00:00"),
+            content_preview=["Overview", "Findings", "Recommendations"],
+            metadata={"source_pdf_url": "https://example.com/source/report.pdf"},
+        )
+
+    monkeypatch.setattr(
+        "app.services.presentation_service.PresentationService.list_presentations",
+        fake_list_presentations,
+    )
+    monkeypatch.setattr(
+        "app.services.presentation_service.PresentationService.get_presentation",
+        fake_get_presentation,
+    )
+
+    list_response = client.get(
+        "/api/v1/presentations",
+        headers={"Authorization": "Bearer test-token"},
+    )
+    detail_response = client.get(
+        "/api/v1/presentations/cc7bfc6f-64f7-4c8c-b7cd-412a6b3a9990",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert list_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert list_response.json()["data"]["total"] == 1
+    assert detail_response.json()["data"]["metadata"]["source_pdf_url"]
+
+
+def test_payment_order_can_be_verified(
+    monkeypatch,
+    client,
+    auth_override,
+) -> None:
+    auth_override(plan_code="free")
+
+    def fake_create_order(self, payload, *, current_user):
+        assert payload.plan_code == "pro"
+        assert current_user.id == TEST_USER_ID
+        return PaymentOrder(
+            order_id="order_12345",
+            provider="razorpay",
+            plan_code="pro",
+            amount=99900,
+            currency="INR",
+            key_id="rzp_test_12345",
+        )
+
+    def fake_verify_payment(self, payload, *, current_user):
+        assert payload.order_id == "order_12345"
+        assert current_user.id == TEST_USER_ID
+        return VerifyPaymentResult(
+            order_id=payload.order_id,
+            payment_id=payload.payment_id,
+            status="verified",
+            plan_code="pro",
+        )
+
+    monkeypatch.setattr(
+        "app.services.payment_service.PaymentService.create_order",
+        fake_create_order,
+    )
+    monkeypatch.setattr(
+        "app.services.payment_service.PaymentService.verify_payment",
+        fake_verify_payment,
+    )
+
     create_response = client.post(
         "/api/v1/payments/create-order",
-        json={"plan_code": "pro", "amount": 999, "currency": "INR"},
+        json={"plan_code": "pro"},
+        headers={"Authorization": "Bearer test-token"},
     )
     create_payload = create_response.json()
 
@@ -325,6 +490,7 @@ def test_payment_order_can_be_verified(client) -> None:
             "payment_id": "pay_12345",
             "signature": "sig_12345",
         },
+        headers={"Authorization": "Bearer test-token"},
     )
     verify_payload = verify_response.json()
 

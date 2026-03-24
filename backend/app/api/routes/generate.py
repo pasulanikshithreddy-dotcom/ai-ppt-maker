@@ -3,27 +3,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.api.deps import (
-    get_content_generation_service,
     get_current_user_context,
     get_notes_generation_service,
     get_pdf_generation_service,
+    get_topic_generation_service,
 )
 from app.schemas.common import ApiResponse
-from app.schemas.content_generation import (
-    GeneratedPresentationContent,
-    TopicToPptRequest,
-)
 from app.schemas.presentation import (
     GenerateFromNotesRequest,
     GenerateFromPdfRequest,
+    GenerateFromTopicRequest,
     GenerationResult,
 )
 from app.schemas.user import AuthenticatedUserContext
-from app.services.content_generation_service import (
-    ContentGenerationConfigurationError,
-    ContentGenerationError,
-    ContentGenerationService,
-)
 from app.services.notes_generation_service import (
     NotesGenerationConfigurationError,
     NotesGenerationError,
@@ -38,12 +30,16 @@ from app.services.pdf_generation_service import (
     PdfGenerationPermissionError,
     PdfGenerationService,
 )
+from app.services.topic_generation_service import (
+    TopicGenerationConfigurationError,
+    TopicGenerationError,
+    TopicGenerationLimitError,
+    TopicGenerationNotFoundError,
+    TopicGenerationPermissionError,
+    TopicGenerationService,
+)
 
 router = APIRouter()
-ContentGenerationServiceDep = Annotated[
-    ContentGenerationService,
-    Depends(get_content_generation_service),
-]
 NotesGenerationServiceDep = Annotated[
     NotesGenerationService,
     Depends(get_notes_generation_service),
@@ -51,6 +47,10 @@ NotesGenerationServiceDep = Annotated[
 PdfGenerationServiceDep = Annotated[
     PdfGenerationService,
     Depends(get_pdf_generation_service),
+]
+TopicGenerationServiceDep = Annotated[
+    TopicGenerationService,
+    Depends(get_topic_generation_service),
 ]
 AuthenticatedUserContextDep = Annotated[
     AuthenticatedUserContext,
@@ -60,25 +60,36 @@ AuthenticatedUserContextDep = Annotated[
 
 @router.post(
     "/generate/topic",
-    response_model=ApiResponse[GeneratedPresentationContent],
-    summary="Generate presentation content from a topic",
+    response_model=ApiResponse[GenerationResult],
+    summary="Generate a presentation from a topic",
 )
 async def generate_from_topic(
-    payload: TopicToPptRequest,
-    content_generation_service: ContentGenerationServiceDep,
-) -> ApiResponse[GeneratedPresentationContent]:
+    payload: GenerateFromTopicRequest,
+    topic_generation_service: TopicGenerationServiceDep,
+    current_user: AuthenticatedUserContextDep,
+) -> ApiResponse[GenerationResult]:
+    if payload.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated user does not match the requested user_id.",
+        )
+
     try:
-        content = content_generation_service.generate_topic_presentation(payload)
-    except ContentGenerationConfigurationError as exc:
+        result = topic_generation_service.generate_from_topic(payload)
+    except TopicGenerationConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except ContentGenerationError as exc:
+    except TopicGenerationPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except TopicGenerationLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except TopicGenerationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TopicGenerationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail="OpenAI content generation failed.") from exc
 
     return ApiResponse(
-        message="Topic presentation content generated successfully.",
-        data=content,
+        message="Topic presentation generated successfully.",
+        data=result,
     )
 
 

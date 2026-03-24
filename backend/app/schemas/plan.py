@@ -22,3 +22,5 @@ class PlanOverview(BaseModel):
     available_plans: list[PlanSummary]
     is_paid: bool = False
     subscription_status: str | None = None
+    daily_topic_limit: int | None = None
+    remaining_topic_generations: int | None = None

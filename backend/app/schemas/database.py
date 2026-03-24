@@ -67,6 +67,15 @@ class PresentationInsert(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class UsageLogInsert(BaseModel):
+    user_id: UUID
+    action: str
+    usage_date: date
+    request_count: int = 1
+    free_limit: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class UsageLogRow(BaseModel):
     id: UUID
     user_id: UUID
@@ -80,6 +89,22 @@ class UsageLogRow(BaseModel):
     updated_at: datetime
 
 
+class SubscriptionInsert(BaseModel):
+    user_id: UUID
+    plan_type: str
+    provider: str = "razorpay"
+    provider_customer_id: str | None = None
+    provider_subscription_id: str | None = None
+    provider_order_id: str | None = None
+    provider_payment_id: str | None = None
+    payment_status: str = "pending"
+    subscription_status: str = "trialing"
+    amount: int
+    currency: str
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
+
+
 class SubscriptionRow(BaseModel):
     id: UUID
     user_id: UUID
@@ -88,6 +113,7 @@ class SubscriptionRow(BaseModel):
     provider_customer_id: str | None = None
     provider_subscription_id: str | None = None
     provider_order_id: str | None = None
+    provider_payment_id: str | None = None
     payment_status: str
     subscription_status: str
     amount: int

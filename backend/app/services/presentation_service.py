@@ -1,16 +1,11 @@
-from pathlib import Path
-from typing import ClassVar
+from __future__ import annotations
+
+from typing import Any, ClassVar
 
 from app.config.settings import Settings
 from app.models.presentation import PresentationRecord, PresentationSource, PresentationStatus
-from app.schemas.presentation import (
-    GenerateFromNotesRequest,
-    GenerateFromPdfRequest,
-    GenerationResult,
-    PresentationDetail,
-    PresentationListData,
-    PresentationSummary,
-)
+from app.schemas.database import PresentationRow
+from app.schemas.presentation import PresentationDetail, PresentationListData, PresentationSummary
 from app.services.openai_service import OpenAIService
 from app.services.pptx_service import PptxService
 from app.services.supabase_service import SupabaseService
@@ -18,7 +13,6 @@ from app.services.supabase_service import SupabaseService
 
 class PresentationService:
     _presentations: ClassVar[dict[str, PresentationRecord]] = {}
-    _seeded: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -31,124 +25,42 @@ class PresentationService:
         self.openai_service = openai_service
         self.supabase_service = supabase_service
         self.pptx_service = pptx_service
-        self._seed_presentations()
 
-    def list_presentations(self) -> PresentationListData:
-        items = [self._to_summary(record) for record in self._sorted_presentations()]
+    def list_presentations(self, *, user_id: str) -> PresentationListData:
+        if self.supabase_service.is_configured():
+            rows = self.supabase_service.list_presentations(user_id=user_id)
+            items = [self._row_to_summary(row) for row in rows]
+            return PresentationListData(items=items, total=len(items))
+
+        items = [
+            self._record_to_summary(record)
+            for record in self._sorted_presentations()
+        ]
         return PresentationListData(items=items, total=len(items))
 
-    def get_presentation(self, presentation_id: str) -> PresentationDetail | None:
+    def get_presentation(
+        self,
+        presentation_id: str,
+        *,
+        user_id: str,
+    ) -> PresentationDetail | None:
+        if self.supabase_service.is_configured():
+            row = self.supabase_service.get_presentation_by_id(
+                presentation_id,
+                user_id=user_id,
+            )
+            if row is None:
+                return None
+            return self._row_to_detail(row)
+
         record = self._presentations.get(presentation_id)
         if record is None:
             return None
-        return self._to_detail(record)
+        return self._record_to_detail(record)
 
-    def generate_from_notes(self, payload: GenerateFromNotesRequest) -> GenerationResult:
-        note_lines = [line.strip() for line in payload.notes.splitlines() if line.strip()]
-        preview = note_lines[:4] if note_lines else ["Imported notes", "Auto-generated structure"]
-        record = self._create_presentation(
-            title=payload.title or "Notes to Slides",
-            source_type=PresentationSource.NOTES,
-            slide_count=payload.slide_count,
-            template_id=payload.template_id,
-            content_preview=preview,
-            metadata={
-                "notes_length": len(payload.notes),
-                "openai_configured": self.openai_service.is_configured(),
-            },
-        )
-        return GenerationResult(presentation=self._to_detail(record))
-
-    def generate_from_pdf(self, payload: GenerateFromPdfRequest) -> GenerationResult:
-        record = self._create_presentation(
-            title=Path(payload.source_filename).stem or "PDF to Deck",
-            source_type=PresentationSource.PDF,
-            slide_count=payload.slide_count,
-            template_id=payload.template_id,
-            content_preview=[
-                "PDF overview",
-                "Key takeaways",
-                "Supporting insights",
-                "Summary and recommendations",
-            ],
-            metadata={
-                "source_filename": payload.source_filename,
-                "pptx_ready": self.pptx_service.is_configured(),
-            },
-        )
-        return GenerationResult(presentation=self._to_detail(record))
-
-    def _create_presentation(
-        self,
-        *,
-        title: str,
-        source_type: PresentationSource,
-        slide_count: int,
-        template_id: str,
-        content_preview: list[str],
-        metadata: dict[str, object],
-        status: PresentationStatus = PresentationStatus.QUEUED,
-        plan_code: str = "free",
-        watermark_applied: bool | None = None,
-    ) -> PresentationRecord:
-        resolved_watermark_applied = (
-            watermark_applied
-            if watermark_applied is not None
-            else self.pptx_service.should_apply_watermark(plan_code)
-        )
-        record = PresentationRecord(
-            title=title,
-            source_type=source_type,
-            slide_count=slide_count,
-            template_id=template_id,
-            status=status,
-            watermark_applied=resolved_watermark_applied,
-            content_preview=content_preview,
-            metadata={
-                **metadata,
-                "supabase_configured": self.supabase_service.is_configured(),
-                "output_dir": str(self.settings.generated_ppt_dir),
-                "watermark_applied": resolved_watermark_applied,
-            },
-        )
-        self._presentations[record.presentation_id] = record
-        return record
-
-    def _seed_presentations(self) -> None:
-        if self._seeded:
-            return
-
-        self._create_presentation(
-            title="AI PPT Maker Launch Plan",
-            source_type=PresentationSource.SAMPLE,
-            slide_count=12,
-            template_id="starter",
-            status=PresentationStatus.COMPLETED,
-            content_preview=[
-                "Problem and market context",
-                "Product flow overview",
-                "Launch milestones",
-                "Success metrics",
-            ],
-            metadata={"seeded": True},
-            watermark_applied=False,
-        )
-        self._create_presentation(
-            title="Investor Update",
-            source_type=PresentationSource.SAMPLE,
-            slide_count=8,
-            template_id="pitch",
-            status=PresentationStatus.COMPLETED,
-            content_preview=[
-                "Revenue snapshot",
-                "Product roadmap",
-                "Team highlights",
-                "Funding use of proceeds",
-            ],
-            metadata={"seeded": True},
-            watermark_applied=False,
-        )
-        self.__class__._seeded = True
+    @classmethod
+    def register_record(cls, record: PresentationRecord) -> None:
+        cls._presentations[record.presentation_id] = record
 
     @classmethod
     def _sorted_presentations(cls) -> list[PresentationRecord]:
@@ -158,35 +70,100 @@ class PresentationService:
             reverse=True,
         )
 
-    @classmethod
-    def register_record(cls, record: PresentationRecord) -> None:
-        cls._presentations[record.presentation_id] = record
+    def _row_to_summary(self, row: PresentationRow) -> PresentationSummary:
+        preview = self._extract_content_preview(row.content)
+        template_id = self._resolve_requested_template_id(row.metadata)
+        return PresentationSummary(
+            id=str(row.id),
+            title=self._resolve_title(row),
+            topic=row.topic,
+            source_type=PresentationSource(row.mode),
+            status=PresentationStatus(row.status),
+            slide_count=self._extract_slide_count(row.content),
+            template_id=template_id,
+            template_name=self._resolve_template_name(row.metadata, template_id),
+            file_url=row.file_url,
+            watermark_applied=row.watermark_applied,
+            created_at=row.created_at,
+            content_preview=preview,
+        )
 
-    @staticmethod
-    def _to_summary(record: PresentationRecord) -> PresentationSummary:
+    def _row_to_detail(self, row: PresentationRow) -> PresentationDetail:
+        summary = self._row_to_summary(row)
+        return PresentationDetail(
+            **summary.model_dump(),
+            metadata=row.metadata,
+        )
+
+    def _record_to_summary(self, record: PresentationRecord) -> PresentationSummary:
+        template_id = record.template_id
         return PresentationSummary(
             id=record.presentation_id,
             title=record.title,
+            topic=record.topic,
             source_type=record.source_type,
             status=record.status,
             slide_count=record.slide_count,
+            template_id=template_id,
+            template_name=self._resolve_template_name(record.metadata, template_id),
+            file_url=record.file_url,
             watermark_applied=record.watermark_applied,
             created_at=record.created_at,
+            content_preview=record.content_preview,
+        )
+
+    def _record_to_detail(self, record: PresentationRecord) -> PresentationDetail:
+        summary = self._record_to_summary(record)
+        return PresentationDetail(
+            **summary.model_dump(),
+            metadata=record.metadata,
         )
 
     @staticmethod
-    def _to_detail(record: PresentationRecord) -> PresentationDetail:
-        return PresentationDetail(
-            id=record.presentation_id,
-            title=record.title,
-            topic=record.topic,
-            file_url=record.file_url,
-            source_type=record.source_type,
-            status=record.status,
-            slide_count=record.slide_count,
-            watermark_applied=record.watermark_applied,
-            created_at=record.created_at,
-            template_id=record.template_id,
-            content_preview=record.content_preview,
-            metadata=record.metadata,
-        )
+    def _extract_content_preview(content: dict[str, Any] | list[Any]) -> list[str]:
+        if not isinstance(content, dict):
+            return []
+        slides = content.get("slides")
+        if not isinstance(slides, list):
+            return []
+        titles: list[str] = []
+        for item in slides[:4]:
+            if isinstance(item, dict):
+                title = item.get("title")
+                if isinstance(title, str) and title.strip():
+                    titles.append(title.strip())
+        return titles
+
+    @staticmethod
+    def _extract_slide_count(content: dict[str, Any] | list[Any]) -> int:
+        if isinstance(content, dict):
+            slides = content.get("slides")
+            if isinstance(slides, list):
+                return len(slides)
+        if isinstance(content, list):
+            return len(content)
+        return 0
+
+    @staticmethod
+    def _resolve_requested_template_id(metadata: dict[str, Any]) -> str:
+        requested_template = metadata.get("requested_template_id")
+        if isinstance(requested_template, str) and requested_template.strip():
+            return requested_template
+        return "unknown"
+
+    @staticmethod
+    def _resolve_template_name(metadata: dict[str, Any], fallback_template_id: str) -> str:
+        template_name = metadata.get("template_name")
+        if isinstance(template_name, str) and template_name.strip():
+            return template_name
+        return fallback_template_id.replace("_", " ").title()
+
+    @staticmethod
+    def _resolve_title(row: PresentationRow) -> str:
+        if isinstance(row.content, dict):
+            title = row.content.get("presentation_title")
+            if isinstance(title, str) and title.strip():
+                return title
+        if row.topic:
+            return row.topic
+        return "Generated Presentation"

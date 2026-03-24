@@ -16,8 +16,10 @@ from app.repositories.supabase_write_repository import SupabaseWriteRepository
 from app.schemas.database import (
     PresentationInsert,
     PresentationRow,
+    SubscriptionInsert,
     SubscriptionRow,
     TemplateRow,
+    UsageLogInsert,
     UsageLogRow,
     UserProfileInsert,
     UserRow,
@@ -142,11 +144,50 @@ class SupabaseService:
     ) -> list[SubscriptionRow]:
         return self.read_repository.list_subscriptions(user_id=user_id, limit=limit)
 
+    def get_subscription_by_order_id(
+        self,
+        *,
+        provider: str,
+        provider_order_id: str,
+    ) -> SubscriptionRow | None:
+        return self.read_repository.get_subscription_by_order_id(
+            provider=provider,
+            provider_order_id=provider_order_id,
+        )
+
     def create_presentation(self, payload: PresentationInsert) -> PresentationRow:
         return self.write_repository.create_presentation(payload)
 
     def create_user_profile(self, payload: UserProfileInsert) -> UserRow:
         return self.write_repository.create_user_profile(payload)
+
+    def create_usage_log(self, payload: UsageLogInsert) -> UsageLogRow:
+        return self.write_repository.create_usage_log(payload)
+
+    def update_usage_log(
+        self,
+        usage_log_id: str,
+        payload: dict[str, object],
+    ) -> UsageLogRow:
+        return self.write_repository.update_usage_log(usage_log_id, payload)
+
+    def create_subscription(self, payload: SubscriptionInsert) -> SubscriptionRow:
+        return self.write_repository.create_subscription(payload)
+
+    def update_subscription(
+        self,
+        subscription_id: str,
+        payload: dict[str, object],
+    ) -> SubscriptionRow:
+        return self.write_repository.update_subscription(subscription_id, payload)
+
+    def update_user_plan(
+        self,
+        user_id: str | UUID,
+        *,
+        plan_type: str,
+    ) -> UserRow:
+        return self.write_repository.update_user_plan(str(user_id), plan_type=plan_type)
 
     def upload_presentation_file(
         self,

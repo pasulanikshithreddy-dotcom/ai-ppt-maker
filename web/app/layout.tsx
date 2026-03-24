@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 
 import "@/app/globals.css";
+import { AppProvider } from "@/components/providers/app-provider";
 
 const bodyFont = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -22,11 +24,13 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="en" className={`${bodyFont.variable} ${displayFont.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AppProvider>{children}</AppProvider>
+      </body>
     </html>
   );
 }

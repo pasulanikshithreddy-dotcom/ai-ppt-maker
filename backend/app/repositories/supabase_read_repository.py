@@ -147,6 +147,23 @@ class SupabaseReadRepository:
         )
         return self._fetch_many(query, SubscriptionRow)
 
+    def get_subscription_by_order_id(
+        self,
+        *,
+        provider: str,
+        provider_order_id: str,
+    ) -> SubscriptionRow | None:
+        query = (
+            self.database.table("subscriptions")
+            .select("*")
+            .eq("provider", provider)
+            .eq("provider_order_id", provider_order_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .maybe_single()
+        )
+        return self._fetch_one(query, SubscriptionRow)
+
     @staticmethod
     def _fetch_one(query: Any, model: type[ModelT]) -> ModelT | None:
         response = query.execute()

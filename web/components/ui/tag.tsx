@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
+
 type TagProps = {
-  children: React.ReactNode;
+  children: ReactNode;
   tone?: "cyan" | "lime" | "slate";
 };
 

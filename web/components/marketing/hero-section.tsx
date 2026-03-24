@@ -29,11 +29,11 @@ export function HeroSection() {
         </p>
 
         <div className="mt-8 flex flex-wrap gap-4">
-          <Link href="#workflow" className={buttonClasses("primary")}>
-            Explore the workflow
+          <Link href="/create" className={buttonClasses("primary")}>
+            Start creating
           </Link>
-          <Link href="#integrations" className={buttonClasses("secondary")}>
-            Check integration status
+          <Link href="/pricing" className={buttonClasses("secondary")}>
+            Compare plans
           </Link>
         </div>
 

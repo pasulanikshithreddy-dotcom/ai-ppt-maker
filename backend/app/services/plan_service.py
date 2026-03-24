@@ -14,10 +14,22 @@ class PlanAccessError(PermissionError):
 
 
 class PlanService:
+    def __init__(
+        self,
+        *,
+        free_topic_daily_limit: int = 3,
+        pro_monthly_price: int = 999,
+        team_monthly_price: int = 2999,
+    ) -> None:
+        self.free_topic_daily_limit = free_topic_daily_limit
+        self.pro_monthly_price = pro_monthly_price
+        self.team_monthly_price = team_monthly_price
+
     def get_plan_overview(
         self,
         *,
         current_plan_code: str,
+        remaining_topic_generations: int | None = None,
         subscription_status: str | None = None,
     ) -> PlanOverview:
         resolved_plan = self.normalize_plan_code(current_plan_code)
@@ -26,14 +38,14 @@ class PlanService:
             self._build_plan_summary("pro", active=resolved_plan == "pro"),
             self._build_plan_summary("team", active=resolved_plan == "team"),
         ]
-        current_plan = next(
-            plan for plan in available_plans if plan.code == resolved_plan
-        )
+        current_plan = next(plan for plan in available_plans if plan.code == resolved_plan)
         return PlanOverview(
             current_plan=current_plan,
             available_plans=available_plans,
             is_paid=self.is_paid_plan(resolved_plan),
             subscription_status=subscription_status,
+            daily_topic_limit=self.get_topic_daily_limit(resolved_plan),
+            remaining_topic_generations=remaining_topic_generations,
         )
 
     def normalize_plan_code(self, plan_code: str | None) -> str:
@@ -76,6 +88,46 @@ class PlanService:
         required_plan = self.normalize_plan_code(required_plan_code).capitalize()
         raise PlanAccessError(f"{feature_name} is available only to {required_plan} users.")
 
+    def get_topic_daily_limit(self, plan_code: str | None) -> int | None:
+        if self.is_paid_plan(plan_code):
+            return None
+        return self.free_topic_daily_limit
+
+    def get_remaining_topic_generations(
+        self,
+        plan_code: str | None,
+        requests_used_today: int,
+    ) -> int | None:
+        daily_limit = self.get_topic_daily_limit(plan_code)
+        if daily_limit is None:
+            return None
+        return max(daily_limit - requests_used_today, 0)
+
+    def is_premium_template_locked(
+        self,
+        plan_code: str | None,
+        *,
+        template_is_pro: bool,
+    ) -> bool:
+        return template_is_pro and not self.is_paid_plan(plan_code)
+
+    def require_template_access(
+        self,
+        plan_code: str | None,
+        *,
+        template_is_pro: bool,
+        template_name: str,
+    ) -> None:
+        if not self.is_premium_template_locked(
+            plan_code,
+            template_is_pro=template_is_pro,
+        ):
+            return
+
+        raise PlanAccessError(
+            f"Template '{template_name}' is available only to Pro users."
+        )
+
     def _build_plan_summary(self, code: str, *, active: bool) -> PlanSummary:
         if code == "free":
             return PlanSummary(
@@ -86,9 +138,13 @@ class PlanService:
                 billing_cycle="monthly",
                 active=active,
                 features=[
-                    PlanFeature(key="slides", label="Up to 10 slides per deck", included=True),
-                    PlanFeature(key="templates", label="Starter templates", included=True),
-                    PlanFeature(key="exports", label="Basic PPT export", included=True),
+                    PlanFeature(
+                        key="slides",
+                        label=f"Up to {self.free_topic_daily_limit} topic generations per day",
+                        included=True,
+                    ),
+                    PlanFeature(key="templates", label="Basic templates", included=True),
+                    PlanFeature(key="exports", label="Watermarked PPT export", included=True),
                     PlanFeature(key="notes", label="Notes to PPT", included=False),
                     PlanFeature(key="pdf", label="PDF to PPT", included=False),
                 ],
@@ -98,14 +154,14 @@ class PlanService:
             return PlanSummary(
                 code="pro",
                 name="Pro",
-                price=999,
+                price=self.pro_monthly_price,
                 currency="INR",
                 billing_cycle="monthly",
                 active=active,
                 features=[
-                    PlanFeature(key="slides", label="Up to 30 slides per deck", included=True),
+                    PlanFeature(key="slides", label="Unlimited generations", included=True),
                     PlanFeature(key="templates", label="Premium templates", included=True),
-                    PlanFeature(key="exports", label="Priority export queue", included=True),
+                    PlanFeature(key="exports", label="No watermark", included=True),
                     PlanFeature(key="notes", label="Notes to PPT", included=True),
                     PlanFeature(key="pdf", label="PDF to PPT", included=True),
                 ],
@@ -114,14 +170,14 @@ class PlanService:
         return PlanSummary(
             code="team",
             name="Team",
-            price=2999,
+            price=self.team_monthly_price,
             currency="INR",
             billing_cycle="monthly",
             active=active,
             features=[
-                PlanFeature(key="slides", label="Shared workspace support", included=True),
-                PlanFeature(key="templates", label="Brand templates", included=True),
-                PlanFeature(key="exports", label="Higher generation quota", included=True),
+                PlanFeature(key="slides", label="Unlimited team generations", included=True),
+                PlanFeature(key="templates", label="Premium and brand templates", included=True),
+                PlanFeature(key="exports", label="No watermark", included=True),
                 PlanFeature(key="notes", label="Notes to PPT", included=True),
                 PlanFeature(key="pdf", label="PDF to PPT", included=True),
             ],

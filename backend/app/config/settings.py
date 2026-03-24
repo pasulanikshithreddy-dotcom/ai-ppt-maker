@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
 
+    free_topic_daily_limit: int = 3
+
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: SecretStr | None = None
+    razorpay_currency: str = "INR"
+    razorpay_pro_monthly_amount: int = 99900
+
     ppt_template_dir: Path = Path("assets/templates")
     template_catalog_path: Path = Path("assets/templates/catalog.json")
     generated_ppt_dir: Path = Path("storage/presentations")

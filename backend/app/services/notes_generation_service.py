@@ -82,6 +82,9 @@ class NotesGenerationService:
 
         if self.pptx_service.get_template_definition(payload.template_id) is None:
             raise NotesGenerationNotFoundError("Selected template was not found.")
+        template_definition = self.pptx_service.get_template_definition(payload.template_id)
+        if template_definition is None:
+            raise NotesGenerationNotFoundError("Selected template was not found.")
 
         normalized_notes = self.normalize_notes(payload.notes)
         sections = self.split_notes_into_sections(
@@ -141,6 +144,8 @@ class NotesGenerationService:
                 "storage_path": storage_path,
                 "sections_count": len(sections),
                 "normalized_notes_length": len(normalized_notes),
+                "requested_template_id": payload.template_id,
+                "template_name": template_definition.name,
                 "template_linked_in_db": template_row is not None,
             }
             saved_presentation = self.supabase_service.create_presentation(
@@ -169,6 +174,7 @@ class NotesGenerationService:
             file_url=file_url,
             slide_count=len(content.slides),
             template_id=payload.template_id,
+            template_name=template_definition.name,
             watermark_applied=watermark_applied,
             content_preview=[slide.title for slide in content.slides[:4]],
             metadata=persisted_metadata,
@@ -264,6 +270,7 @@ class NotesGenerationService:
         file_url: str,
         slide_count: int,
         template_id: str,
+        template_name: str,
         watermark_applied: bool,
         content_preview: list[str],
         metadata: dict[str, object],
@@ -279,6 +286,7 @@ class NotesGenerationService:
             watermark_applied=watermark_applied,
             created_at=created_at,
             template_id=template_id,
+            template_name=template_name,
             content_preview=content_preview,
             metadata=metadata,
         )

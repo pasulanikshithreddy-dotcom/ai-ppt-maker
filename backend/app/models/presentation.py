@@ -8,7 +8,8 @@ from app.utils.runtime import new_id, utc_now
 
 class PresentationStatus(StrEnum):
     QUEUED = "queued"
-    RUNNING = "running"
+    PROCESSING = "processing"
+    RUNNING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
