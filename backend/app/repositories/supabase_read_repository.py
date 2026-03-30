@@ -167,6 +167,8 @@ class SupabaseReadRepository:
     @staticmethod
     def _fetch_one(query: Any, model: type[ModelT]) -> ModelT | None:
         response = query.execute()
+        if response is None:
+            return None
         payload = response.data
         if payload in (None, []):
             return None
@@ -179,6 +181,8 @@ class SupabaseReadRepository:
     @staticmethod
     def _fetch_many(query: Any, model: type[ModelT]) -> list[ModelT]:
         response = query.execute()
+        if response is None:
+            return []
         payload = response.data or []
         if not isinstance(payload, list):
             payload = [payload]

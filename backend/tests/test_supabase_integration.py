@@ -43,6 +43,11 @@ class FakeQuery:
         return SimpleNamespace(data=self.payload)
 
 
+class FakeNoneResponseQuery(FakeQuery):
+    def execute(self):
+        return None
+
+
 class FakeDatabaseHelper:
     def __init__(self, payloads):
         self.payloads = payloads
@@ -316,3 +321,22 @@ def test_supabase_service_exposes_read_and_storage_helpers() -> None:
             plan_type="free",
         )
     )["created_user"].plan_type == "free"
+
+
+def test_supabase_read_repository_handles_none_responses() -> None:
+    class FakeNoneDatabaseHelper:
+        def table(self, _table_name: str):
+            return FakeNoneResponseQuery(None)
+
+    repository = SupabaseReadRepository(FakeNoneDatabaseHelper())
+
+    assert (
+        repository.get_active_subscription(
+            user_id="4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e"
+        )
+        is None
+    )
+    assert (
+        repository.get_user_by_id("4cb0f7b6-f47b-41c6-9aef-dcc0a4cf550e")
+        is None
+    )
