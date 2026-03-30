@@ -2,13 +2,25 @@ from __future__ import annotations
 
 from typing import TypeVar
 
-from openai import OpenAIError
+from openai import AuthenticationError, OpenAIError, RateLimitError
 from pydantic import BaseModel
 
 from app.config.settings import Settings
 from app.utils.runtime import is_secret_configured
 
 StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
+
+
+class OpenAIServiceError(RuntimeError):
+    """Raised when OpenAI cannot complete a request."""
+
+
+class OpenAIServiceAuthenticationError(OpenAIServiceError):
+    """Raised when the configured OpenAI API key is rejected."""
+
+
+class OpenAIServiceRateLimitError(OpenAIServiceError):
+    """Raised when the OpenAI project has no remaining quota or is rate limited."""
 
 
 class OpenAIService:
@@ -49,8 +61,16 @@ class OpenAIService:
                 response_format=response_format,
                 temperature=temperature,
             )
+        except AuthenticationError as exc:
+            raise OpenAIServiceAuthenticationError(
+                "OpenAI authentication failed. Check OPENAI_API_KEY."
+            ) from exc
+        except RateLimitError as exc:
+            raise OpenAIServiceRateLimitError(
+                "OpenAI quota or rate limit was exceeded. Check billing and usage limits."
+            ) from exc
         except OpenAIError as exc:
-            raise RuntimeError("OpenAI request failed.") from exc
+            raise OpenAIServiceError("OpenAI request failed.") from exc
 
         message = completion.choices[0].message
         if message.parsed is None:

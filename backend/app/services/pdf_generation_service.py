@@ -162,7 +162,7 @@ class PdfGenerationService:
             raise PdfGenerationConfigurationError(str(exc)) from exc
         except (ContentGenerationError, PptxTemplateNotFoundError) as exc:
             self._cleanup_storage(source_pdf_path, generated_ppt_storage_path)
-            raise PdfGenerationError("Failed to generate a presentation from the PDF.") from exc
+            raise PdfGenerationError(str(exc)) from exc
         except PdfGenerationConfigurationError:
             self._cleanup_storage(source_pdf_path, generated_ppt_storage_path)
             raise

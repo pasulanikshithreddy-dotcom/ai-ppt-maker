@@ -14,6 +14,11 @@ from app.services.content_generation_service import (
     ContentGenerationError,
     ContentGenerationService,
 )
+from app.services.openai_service import (
+    OpenAIServiceAuthenticationError,
+    OpenAIServiceError,
+    OpenAIServiceRateLimitError,
+)
 
 
 class FakeOpenAIService:
@@ -26,6 +31,15 @@ class FakeOpenAIService:
 
     def parse_chat_completion(self, **_kwargs):
         return self.parsed_response
+
+
+class RaisingOpenAIService(FakeOpenAIService):
+    def __init__(self, exc: Exception, configured: bool = True) -> None:
+        super().__init__(parsed_response=None, configured=configured)
+        self.exc = exc
+
+    def parse_chat_completion(self, **_kwargs):
+        raise self.exc
 
 
 def test_content_generation_service_returns_validated_presentation() -> None:
@@ -216,3 +230,62 @@ def test_content_generation_service_generates_pdf_based_presentation() -> None:
 
     assert result.presentation_title == "Annual Report Summary"
     assert len(result.slides) == 3
+
+
+def test_content_generation_service_surfaces_openai_quota_errors_as_configuration() -> None:
+    payload = TopicToPptRequest(
+        topic="AI PPT workflows",
+        subject="Productivity",
+        slide_count=3,
+        tone="practical",
+    )
+    service = ContentGenerationService(
+        RaisingOpenAIService(
+            OpenAIServiceRateLimitError(
+                "OpenAI quota or rate limit was exceeded. Check billing and usage limits."
+            )
+        )
+    )
+
+    with pytest.raises(ContentGenerationConfigurationError) as exc_info:
+        service.generate_topic_presentation(payload)
+
+    assert "quota or rate limit" in str(exc_info.value)
+
+
+def test_content_generation_service_surfaces_openai_auth_errors_as_configuration() -> None:
+    payload = TopicToPptRequest(
+        topic="AI PPT workflows",
+        subject="Productivity",
+        slide_count=3,
+        tone="practical",
+    )
+    service = ContentGenerationService(
+        RaisingOpenAIService(
+            OpenAIServiceAuthenticationError(
+                "OpenAI authentication failed. Check OPENAI_API_KEY."
+            )
+        )
+    )
+
+    with pytest.raises(ContentGenerationConfigurationError) as exc_info:
+        service.generate_topic_presentation(payload)
+
+    assert "authentication failed" in str(exc_info.value)
+
+
+def test_content_generation_service_surfaces_generic_openai_errors() -> None:
+    payload = TopicToPptRequest(
+        topic="AI PPT workflows",
+        subject="Productivity",
+        slide_count=3,
+        tone="practical",
+    )
+    service = ContentGenerationService(
+        RaisingOpenAIService(OpenAIServiceError("OpenAI request failed."))
+    )
+
+    with pytest.raises(ContentGenerationError) as exc_info:
+        service.generate_topic_presentation(payload)
+
+    assert "OpenAI request failed" in str(exc_info.value)

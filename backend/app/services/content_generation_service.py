@@ -6,7 +6,12 @@ from app.schemas.content_generation import (
     GeneratedPresentationContent,
     TopicToPptRequest,
 )
-from app.services.openai_service import OpenAIService
+from app.services.openai_service import (
+    OpenAIService,
+    OpenAIServiceAuthenticationError,
+    OpenAIServiceError,
+    OpenAIServiceRateLimitError,
+)
 
 
 class ContentGenerationConfigurationError(RuntimeError):
@@ -44,6 +49,10 @@ class ContentGenerationService:
                 response_format=GeneratedPresentationContent,
                 temperature=0.7,
             )
+        except (OpenAIServiceAuthenticationError, OpenAIServiceRateLimitError) as exc:
+            raise ContentGenerationConfigurationError(str(exc)) from exc
+        except OpenAIServiceError as exc:
+            raise ContentGenerationError(str(exc)) from exc
         except (ValidationError, ValueError) as exc:
             raise ContentGenerationError(
                 "Generated presentation content was invalid."
@@ -85,6 +94,10 @@ class ContentGenerationService:
                 response_format=GeneratedPresentationContent,
                 temperature=0.4,
             )
+        except (OpenAIServiceAuthenticationError, OpenAIServiceRateLimitError) as exc:
+            raise ContentGenerationConfigurationError(str(exc)) from exc
+        except OpenAIServiceError as exc:
+            raise ContentGenerationError(str(exc)) from exc
         except (ValidationError, ValueError) as exc:
             raise ContentGenerationError(
                 "Generated presentation content was invalid."
@@ -118,6 +131,10 @@ class ContentGenerationService:
                 response_format=GeneratedPresentationContent,
                 temperature=0.3,
             )
+        except (OpenAIServiceAuthenticationError, OpenAIServiceRateLimitError) as exc:
+            raise ContentGenerationConfigurationError(str(exc)) from exc
+        except OpenAIServiceError as exc:
+            raise ContentGenerationError(str(exc)) from exc
         except (ValidationError, ValueError) as exc:
             raise ContentGenerationError(
                 "Generated presentation content was invalid."

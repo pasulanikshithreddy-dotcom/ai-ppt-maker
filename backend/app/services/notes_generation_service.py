@@ -102,7 +102,9 @@ class NotesGenerationService:
             )
         except ContentGenerationConfigurationError as exc:
             raise NotesGenerationConfigurationError(str(exc)) from exc
-        except (ContentGenerationError, RuntimeError) as exc:
+        except ContentGenerationError as exc:
+            raise NotesGenerationError(str(exc)) from exc
+        except RuntimeError as exc:
             raise NotesGenerationError(
                 "Failed to generate structured presentation content."
             ) from exc

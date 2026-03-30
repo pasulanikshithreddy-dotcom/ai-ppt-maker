@@ -106,7 +106,9 @@ class TopicGenerationService:
             )
         except ContentGenerationConfigurationError as exc:
             raise TopicGenerationConfigurationError(str(exc)) from exc
-        except (ContentGenerationError, RuntimeError) as exc:
+        except ContentGenerationError as exc:
+            raise TopicGenerationError(str(exc)) from exc
+        except RuntimeError as exc:
             raise TopicGenerationError(
                 "Failed to generate structured presentation content."
             ) from exc
