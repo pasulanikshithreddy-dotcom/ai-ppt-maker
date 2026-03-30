@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --color-night: #050914;
-  --color-ink: #08111f;
+  --color-night: #04070f;
+  --color-ink: #0b1320;
   --color-mist: #97a6c3;
-  --color-cyan: #0accff;
-  --color-lime: #95ff70;
-  --surface-soft: rgba(11, 19, 34, 0.72);
-  --surface-strong: rgba(12, 21, 38, 0.92);
-  --surface-border: rgba(255, 255, 255, 0.1);
+  --color-cyan: #5ad9ff;
+  --color-lime: #a7f36b;
+  --surface-soft: rgba(12, 20, 35, 0.72);
+  --surface-strong: rgba(10, 16, 28, 0.94);
+  --surface-border: rgba(255, 255, 255, 0.09);
 }
 
 * {
@@ -24,7 +24,10 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--color-night);
+  background:
+    radial-gradient(circle at top, rgba(90, 217, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 20% 20%, rgba(167, 243, 107, 0.08), transparent 18%),
+    linear-gradient(180deg, #07101b 0%, #04070f 48%, #02040a 100%);
   color: #f5f7ff;
   font-family: var(--font-body), sans-serif;
 }
@@ -43,11 +46,13 @@ a {
   border: 1px solid var(--surface-border);
   background: linear-gradient(
     180deg,
-    rgba(14, 24, 42, 0.92) 0%,
-    rgba(7, 13, 24, 0.96) 100%
+    rgba(14, 24, 42, 0.94) 0%,
+    rgba(7, 13, 24, 0.98) 100%
   );
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(16px);
+  box-shadow:
+    0 24px 90px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
 }
 
 .text-balance {
@@ -62,25 +67,90 @@ a {
 
 .mesh-panel {
   background:
-    radial-gradient(circle at top right, rgba(10, 204, 255, 0.18), transparent 33%),
-    radial-gradient(circle at bottom left, rgba(149, 255, 112, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(90, 217, 255, 0.18), transparent 33%),
+    radial-gradient(circle at bottom left, rgba(167, 243, 107, 0.12), transparent 30%),
     rgba(7, 13, 24, 0.94);
 }
 
 .surface-muted {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(14px);
 }
 
 .surface-inset {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(2, 6, 15, 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+    rgba(2, 6, 15, 0.5);
 }
 
 .page-grid {
   background:
-    radial-gradient(circle at top, rgba(10, 204, 255, 0.14), transparent 36%),
-    radial-gradient(circle at bottom left, rgba(149, 255, 112, 0.09), transparent 26%),
+    radial-gradient(circle at top, rgba(90, 217, 255, 0.14), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(167, 243, 107, 0.09), transparent 26%),
     linear-gradient(180deg, rgba(8, 17, 31, 0.98) 0%, rgba(4, 8, 15, 1) 100%);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.form-control {
+  width: 100%;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+    rgba(2, 6, 15, 0.52);
+  color: white;
+  padding: 0.9rem 1rem;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.form-control:focus {
+  border-color: rgba(90, 217, 255, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(90, 217, 255, 0.15),
+    0 0 0 6px rgba(90, 217, 255, 0.05);
+}
+
+.form-control::placeholder {
+  color: rgba(151, 166, 195, 0.82);
+}
+
+.soft-divider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+.data-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(245, 247, 255, 0.88);
+}
+
+.preview-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

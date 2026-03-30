@@ -78,6 +78,7 @@ export default function PricingPage() {
       if (!window.Razorpay) {
         throw new Error("Razorpay checkout failed to load.");
       }
+
       const Razorpay = window.Razorpay;
 
       await new Promise<void>((resolve, reject) => {
@@ -128,9 +129,7 @@ export default function PricingPage() {
         checkout.open();
       });
     } catch (error) {
-      setPaymentError(
-        error instanceof Error ? error.message : "Payment checkout failed.",
-      );
+      setPaymentError(error instanceof Error ? error.message : "Payment checkout failed.");
     } finally {
       setLoadingCheckout(false);
     }
@@ -140,15 +139,15 @@ export default function PricingPage() {
     <div className="space-y-6">
       <PageHero
         eyebrow="Pricing"
-        title="Plans that scale from revision decks to polished premium exports."
-        description="Free keeps Topic-to-PPT lightweight for students, while Pro unlocks Notes, PDF, premium templates, watermark removal, and unlimited generations."
+        title="Free should be useful. Pro should remove the real blockers."
+        description="Use Free to test Topic to PPT and basic templates. Upgrade to Pro when you need Notes to PPT, PDF to PPT, premium templates, no watermark, and unlimited generations."
         actions={
           <>
-            <Link href="/login" className={buttonClasses("primary")}>
-              Start free
+            <Link href="/login" className={buttonClasses("secondary")}>
+              Login
             </Link>
-            <Link href="/dashboard" className={buttonClasses("secondary")}>
-              Open workspace
+            <Link href="/create" className={buttonClasses("primary")}>
+              Open create
             </Link>
           </>
         }
@@ -162,53 +161,65 @@ export default function PricingPage() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {planCards.map((planOption) => (
-          <Panel
-            key={planOption.code}
-            className={planOption.code === "pro" ? "border-cyan/30 bg-cyan/[0.08]" : undefined}
-          >
-            <p className="text-xs uppercase tracking-[0.22em] text-cyan">
-              {planOption.code === "pro" ? "Most popular" : "Starter"}
-            </p>
-            <h2 className="mt-4 font-display text-3xl font-semibold text-white">
-              {planOption.name}
-            </h2>
-            <div className="mt-4 flex items-end gap-2">
-              <span className="font-display text-5xl font-semibold text-white">
-                {planOption.price === 0 ? "0" : `INR ${planOption.price}`}
-              </span>
-              <span className="pb-2 text-mist">/{planOption.billing_cycle}</span>
-            </div>
-            <div className="mt-6 space-y-3">
-              {planOption.features.map((feature) => (
-                <div
-                  key={feature.key}
-                  className="surface-inset rounded-2xl p-3 text-sm text-white/90"
-                >
-                  {feature.included ? "Included" : "Locked"}: {feature.label}
+        {planCards.map((planOption) => {
+          const isCurrentPlan = planOption.active || currentUser?.plan_code === planOption.code;
+
+          return (
+            <Panel
+              key={planOption.code}
+              className={planOption.code === "pro" ? "border-cyan/30 bg-cyan/[0.08]" : undefined}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="eyebrow text-cyan">
+                    {planOption.code === "pro" ? "Upgrade path" : "Starter plan"}
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-semibold text-white">
+                    {planOption.name}
+                  </h2>
                 </div>
-              ))}
-            </div>
-            {planOption.code === "free" ? (
-              <Link href="/login" className={`${buttonClasses("secondary")} mt-6 w-full`}>
-                Start on Free
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className={`${buttonClasses("primary")} mt-6 w-full`}
-                disabled={loadingCheckout || !accessToken || currentUser?.can_use_pro_features}
-                onClick={() => void handleUpgrade()}
-              >
-                {currentUser?.can_use_pro_features
-                  ? "You're already on Pro"
-                  : loadingCheckout
-                    ? "Opening checkout..."
-                    : "Upgrade to Pro"}
-              </button>
-            )}
-          </Panel>
-        ))}
+                <span className="data-chip">{isCurrentPlan ? "Current plan" : planOption.code}</span>
+              </div>
+
+              <div className="mt-5 flex items-end gap-2">
+                <span className="font-display text-5xl font-semibold text-white">
+                  {planOption.price === 0 ? "0" : `INR ${planOption.price}`}
+                </span>
+                <span className="pb-2 text-mist">/{planOption.billing_cycle}</span>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {planOption.features.map((feature) => (
+                  <div
+                    key={feature.key}
+                    className="surface-inset rounded-[1.2rem] p-3 text-sm text-white/90"
+                  >
+                    {feature.included ? "Included" : "Locked"}: {feature.label}
+                  </div>
+                ))}
+              </div>
+
+              {planOption.code === "free" ? (
+                <Link href="/login" className={`${buttonClasses("secondary")} mt-6 w-full`}>
+                  Start on Free
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className={`${buttonClasses("primary")} mt-6 w-full`}
+                  disabled={loadingCheckout || !accessToken || currentUser?.can_use_pro_features}
+                  onClick={() => void handleUpgrade()}
+                >
+                  {currentUser?.can_use_pro_features
+                    ? "You're already on Pro"
+                    : loadingCheckout
+                      ? "Opening checkout..."
+                      : "Upgrade to Pro"}
+                </button>
+              )}
+            </Panel>
+          );
+        })}
       </div>
     </div>
   );

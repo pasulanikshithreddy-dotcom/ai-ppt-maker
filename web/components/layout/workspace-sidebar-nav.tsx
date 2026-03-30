@@ -19,10 +19,10 @@ export function WorkspaceSidebarNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "min-w-fit rounded-2xl border px-4 py-3 text-sm font-medium transition lg:w-full",
+              "min-w-fit rounded-[1.1rem] border px-4 py-3 text-sm font-medium transition lg:w-full",
               isActive
-                ? "border-cyan/30 bg-cyan/12 text-white"
-                : "border-white/8 bg-white/[0.03] text-mist hover:border-white/14 hover:text-white",
+                ? "border-cyan/30 bg-cyan/[0.12] text-white shadow-[0_12px_28px_rgba(90,217,255,0.12)]"
+                : "border-white/8 bg-white/[0.03] text-mist hover:border-white/14 hover:bg-white/[0.06] hover:text-white",
             )}
           >
             <span className="hidden lg:inline">{item.label}</span>

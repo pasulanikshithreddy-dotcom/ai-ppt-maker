@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 import { useApp } from "@/components/providers/app-provider";
+import { buttonClasses } from "@/components/ui/button";
 import { PageHero } from "@/components/ui/page-hero";
 import { Panel } from "@/components/ui/panel";
 import { StatusBanner } from "@/components/ui/status-banner";
@@ -30,8 +32,18 @@ export default function HistoryPage() {
     <div className="space-y-6">
       <PageHero
         eyebrow="History"
-        title="Keep every draft, revision, and export within reach."
-        description="Review saved presentations, inspect preview summaries, and reopen download links without hunting through old tabs."
+        title="Every saved deck should stay easy to find, inspect, and download."
+        description="Use history as a real archive, not a forgotten log. Open old presentations, review outline summaries, and pull the download link back without digging through chat or files."
+        actions={
+          <>
+            <button type="button" className={buttonClasses("secondary")} onClick={() => void refresh()}>
+              Refresh
+            </button>
+            <Link href="/create" className={buttonClasses("primary")}>
+              Create another deck
+            </Link>
+          </>
+        }
       />
 
       {error ? (
@@ -42,59 +54,67 @@ export default function HistoryPage() {
         <Panel>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-cyan">Saved presentations</p>
+              <p className="eyebrow text-cyan">Saved presentations</p>
               <h2 className="mt-2 font-display text-2xl font-semibold text-white">
                 Your deck archive
               </h2>
             </div>
-            <button
-              type="button"
-              className="text-sm text-mist hover:text-white"
-              onClick={() => void refresh()}
-            >
-              Refresh
-            </button>
+            <span className="data-chip">{items.length} total</span>
           </div>
 
           <div className="mt-5 grid gap-3">
             {loading ? <p className="text-sm text-mist">Loading presentation history...</p> : null}
             {!loading && items.length === 0 ? (
-              <div className="surface-inset rounded-[1.5rem] p-4 text-sm text-mist">
-                Your history is empty right now. Generate a deck from Topic, Notes, or PDF to
-                see it appear here.
+              <div className="surface-inset rounded-[1.4rem] p-4 text-sm leading-7 text-mist">
+                Your history is empty right now. Generate a deck from Topic, Notes, or PDF and it
+                will show up here automatically.
               </div>
             ) : null}
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => void selectPresentation(item.id)}
-                className="surface-inset rounded-[1.5rem] p-4 text-left transition hover:border-cyan/20 hover:bg-cyan/[0.04]"
-              >
-                <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr] md:items-center">
-                  <div>
-                    <h2 className="font-display text-xl font-semibold text-white">{item.title}</h2>
-                    <p className="mt-1 text-sm text-mist">
-                      {item.template_name ?? item.template_id}
-                    </p>
+
+            {items.map((item) => {
+              const isSelected = selectedPresentation?.id === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => void selectPresentation(item.id)}
+                  className={`rounded-[1.4rem] border p-4 text-left transition ${
+                    isSelected
+                      ? "border-cyan/30 bg-cyan/[0.08]"
+                      : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h3 className="font-display text-xl font-semibold text-white">{item.title}</h3>
+                      <p className="mt-1 text-sm text-mist">
+                        {item.template_name ?? item.template_id}
+                      </p>
+                    </div>
+                    <span className="data-chip">{item.status}</span>
                   </div>
-                  <p className="text-sm text-white/90">
-                    {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(
-                      new Date(item.created_at),
-                    )}
-                  </p>
-                  <p className="text-sm text-cyan">{item.source_type.toUpperCase()}</p>
-                  <div className="text-sm text-lime">
-                    {item.watermark_applied ? "Watermarked" : "No watermark"}
+
+                  <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/85">
+                    <span className="data-chip">{item.source_type.toUpperCase()}</span>
+                    <span className="data-chip">{item.slide_count} slides</span>
+                    <span className="data-chip">
+                      {item.watermark_applied ? "Watermarked" : "No watermark"}
+                    </span>
+                    <span className="data-chip">
+                      {new Intl.DateTimeFormat("en-IN", {
+                        dateStyle: "medium",
+                      }).format(new Date(item.created_at))}
+                    </span>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </Panel>
 
         <Panel>
-          <p className="text-xs uppercase tracking-[0.22em] text-lime">Preview summary</p>
+          <p className="eyebrow text-lime">Preview summary</p>
           <h2 className="mt-2 font-display text-2xl font-semibold text-white">
             {selectedPresentation?.title ?? "Choose a saved deck"}
           </h2>
@@ -102,36 +122,36 @@ export default function HistoryPage() {
           {detailLoading ? <p className="mt-5 text-sm text-mist">Loading preview...</p> : null}
 
           {!detailLoading && !selectedPresentation ? (
-            <div className="surface-inset mt-5 rounded-[1.5rem] p-4 text-sm text-mist">
-              Select a presentation from the left to inspect its preview summary and download
-              link.
+            <div className="surface-inset mt-5 rounded-[1.4rem] p-4 text-sm leading-7 text-mist">
+              Select a presentation from the left to inspect the saved outline, metadata, and
+              download link.
             </div>
           ) : null}
 
           {selectedPresentation ? (
             <div className="mt-5 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="surface-inset rounded-[1.5rem] p-4 text-sm text-white/90">
+              <div className="preview-grid">
+                <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                   Mode: {selectedPresentation.source_type.toUpperCase()}
                 </div>
-                <div className="surface-inset rounded-[1.5rem] p-4 text-sm text-white/90">
+                <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                   Slides: {selectedPresentation.slide_count}
                 </div>
-                <div className="surface-inset rounded-[1.5rem] p-4 text-sm text-white/90">
+                <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                   Template: {selectedPresentation.template_name ?? selectedPresentation.template_id}
                 </div>
-                <div className="surface-inset rounded-[1.5rem] p-4 text-sm text-white/90">
+                <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                   Watermark: {selectedPresentation.watermark_applied ? "Applied" : "Removed"}
                 </div>
               </div>
 
-              <div className="surface-inset rounded-[1.5rem] p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan">Outline preview</p>
-                <div className="mt-3 space-y-2">
+              <div className="surface-inset rounded-[1.4rem] p-4">
+                <p className="eyebrow text-cyan">Outline preview</p>
+                <div className="mt-4 space-y-2">
                   {selectedPresentation.content_preview.map((item) => (
                     <div
                       key={item}
-                      className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-white/90"
+                      className="rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-white/90"
                     >
                       {item}
                     </div>
@@ -144,7 +164,7 @@ export default function HistoryPage() {
                   href={selectedPresentation.file_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center rounded-full bg-cyan px-5 py-3 text-sm font-semibold text-slate-950"
+                  className={buttonClasses("primary")}
                 >
                   Download PPTX
                 </a>

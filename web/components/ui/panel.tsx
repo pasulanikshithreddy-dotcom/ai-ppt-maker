@@ -9,5 +9,9 @@ export function Panel({
   children: ReactNode;
   className?: string;
 }) {
-  return <section className={cn("surface-card rounded-[1.75rem] p-5", className)}>{children}</section>;
+  return (
+    <section className={cn("surface-card rounded-[1.75rem] p-6", className)}>
+      {children}
+    </section>
+  );
 }

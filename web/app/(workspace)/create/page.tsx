@@ -18,23 +18,42 @@ import { StatusBanner } from "@/components/ui/status-banner";
 
 type CreateMode = "topic" | "notes" | "pdf";
 
-const createModes = [
+const createModes: Array<{
+  id: CreateMode;
+  title: string;
+  summary: string;
+  access: "Free" | "Pro";
+}> = [
   {
-    id: "topic" as const,
+    id: "topic",
     title: "Topic to PPT",
-    description: "Start from a prompt and let AI outline the deck structure.",
+    summary: "Best when you know the idea and want the app to shape the first structure.",
+    access: "Free",
   },
   {
-    id: "notes" as const,
+    id: "notes",
     title: "Notes to PPT",
-    description: "Turn class notes or brainstorms into structured slides.",
+    summary: "Best when you already have rough notes or talking points and need them cleaned up.",
+    access: "Pro",
   },
   {
-    id: "pdf" as const,
+    id: "pdf",
     title: "PDF to PPT",
-    description: "Summarize uploaded PDFs into a clean presentation draft.",
+    summary: "Best when the source already exists in a document and you want a condensed deck draft.",
+    access: "Pro",
   },
 ];
+
+const suggestedTopics = [
+  "Machine learning evaluation metrics",
+  "Climate policy debate summary",
+  "Startup pitch for a campus app",
+  "Operating systems memory management",
+];
+
+function formatTemplateColor(color: string) {
+  return color.startsWith("#") ? color : `#${color}`;
+}
 
 export default function CreatePage() {
   const {
@@ -79,12 +98,47 @@ export default function CreatePage() {
     [selectedTemplateId, templates],
   );
 
+  const activeModeConfig = createModes.find((mode) => mode.id === activeMode) ?? createModes[0];
   const isLockedMode = activeMode !== "topic" && !isPaid;
   const topicLimitReached =
     activeMode === "topic" &&
     !isPaid &&
     remainingTopicGenerations != null &&
     remainingTopicGenerations <= 0;
+
+  const inputSummary = useMemo(() => {
+    if (activeMode === "topic") {
+      return {
+        source: topic.trim() || "No topic entered yet",
+        slides: topicSlideCount,
+        tone,
+      };
+    }
+
+    if (activeMode === "notes") {
+      return {
+        source: notesTitle.trim() || notesTopic.trim() || "Untitled notes draft",
+        slides: notesSlideCount,
+        tone: "notes cleanup",
+      };
+    }
+
+    return {
+      source: pdfFile?.name ?? "No PDF selected yet",
+      slides: pdfSlideCount,
+      tone: "document summary",
+    };
+  }, [
+    activeMode,
+    notesSlideCount,
+    notesTitle,
+    notesTopic,
+    pdfFile?.name,
+    pdfSlideCount,
+    tone,
+    topic,
+    topicSlideCount,
+  ]);
 
   function handleModeChange(nextMode: CreateMode) {
     setActiveMode(nextMode);
@@ -105,31 +159,56 @@ export default function CreatePage() {
     setUpgradePrompt(null);
   }
 
-  async function handleGenerate() {
+  function validateInputs() {
     if (!accessToken || !currentUser) {
-      setError("Sign in before generating a presentation.");
-      return;
+      return "Sign in before generating a presentation.";
     }
 
     if (!selectedTemplate) {
-      setError("Choose a template before generating.");
-      return;
+      return "Choose a template before generating.";
     }
 
     if (selectedTemplate.is_pro && !isPaid) {
-      setUpgradePrompt(`Template "${selectedTemplate.name}" is available only on the Pro plan.`);
-      return;
+      return `Template "${selectedTemplate.name}" is available only on the Pro plan.`;
     }
 
     if (activeMode !== "topic" && !isPaid) {
-      setUpgradePrompt(`${activeMode.toUpperCase()} to PPT is available only on the Pro plan.`);
-      return;
+      return `${activeMode.toUpperCase()} to PPT is available only on the Pro plan.`;
     }
 
     if (topicLimitReached) {
-      setUpgradePrompt(
-        "You've used today's free Topic-to-PPT quota. Upgrade to Pro for unlimited generations.",
-      );
+      return "You've used today's free Topic-to-PPT quota. Upgrade to Pro for unlimited generations.";
+    }
+
+    if (activeMode === "topic" && !topic.trim()) {
+      return "Add a topic before generating.";
+    }
+
+    if (activeMode === "notes" && !notes.trim()) {
+      return "Paste your notes before generating.";
+    }
+
+    if (activeMode === "pdf" && !pdfFile) {
+      return "Upload a PDF before generating.";
+    }
+
+    return null;
+  }
+
+  async function handleGenerate() {
+    const validationMessage = validateInputs();
+    if (validationMessage) {
+      if (validationMessage.toLowerCase().includes("pro")) {
+        setError(null);
+        setUpgradePrompt(validationMessage);
+      } else {
+        setUpgradePrompt(null);
+        setError(validationMessage);
+      }
+      return;
+    }
+
+    if (!selectedTemplate || !currentUser || !accessToken) {
       return;
     }
 
@@ -159,12 +238,8 @@ export default function CreatePage() {
           template_id: selectedTemplate.id,
         });
       } else {
-        if (!pdfFile) {
-          throw new Error("Upload a PDF before generating.");
-        }
-
         response = await generatePdf(accessToken, {
-          pdf: pdfFile,
+          pdf: pdfFile as File,
           slide_count: pdfSlideCount,
           user_id: currentUser.id,
           template_id: selectedTemplate.id,
@@ -174,8 +249,7 @@ export default function CreatePage() {
       setResult(response.data);
       await refreshAccount();
     } catch (nextError) {
-      const message =
-        nextError instanceof Error ? nextError.message : "Generation failed.";
+      const message = nextError instanceof Error ? nextError.message : "Generation failed.";
       setError(message);
       if (message.toLowerCase().includes("pro")) {
         setUpgradePrompt(message);
@@ -189,8 +263,18 @@ export default function CreatePage() {
     <div className="space-y-6">
       <PageHero
         eyebrow="Create"
-        title="Build the next deck draft from topic, notes, or a source PDF."
-        description="Switch between Topic, Notes, and PDF generation, choose a live template from the backend catalog, and preview the structured result before downloading."
+        title="Create a deck from the source you actually have."
+        description="This should be the main working surface: choose a mode, set the inputs, pick a template, preview the direction, and generate without guessing what happens next."
+        actions={
+          <>
+            <span className="data-chip">{plan?.current_plan.name ?? "Free"} plan</span>
+            <span className="data-chip">
+              {remainingTopicGenerations == null
+                ? "Unlimited topic generations"
+                : `${remainingTopicGenerations} topic generations left`}
+            </span>
+          </>
+        }
       />
 
       {templatesError ? (
@@ -203,74 +287,95 @@ export default function CreatePage() {
       {error ? <StatusBanner title="Generation failed" description={error} tone="danger" /> : null}
       {upgradePrompt ? (
         <StatusBanner
-          title="Upgrade to unlock this flow"
+          title="Upgrade needed"
           description={upgradePrompt}
           tone="warning"
         />
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.22em] text-cyan">Generator</p>
-          <h2 className="mt-2 font-display text-2xl font-semibold text-white">Draft setup</h2>
-          <p className="mt-2 text-sm text-mist">
-            {plan?.remaining_topic_generations == null
-              ? "Unlimited generations are available on your current plan."
-              : `${plan.remaining_topic_generations} topic generations left today on Free.`}
-          </p>
+        <div className="space-y-4">
+          <Panel>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="eyebrow text-cyan">Generation mode</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold text-white">
+                  Choose the workflow
+                </h2>
+              </div>
+              <span className="data-chip">{activeModeConfig.access}</span>
+            </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {createModes.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => handleModeChange(mode.id)}
-                className={`surface-inset rounded-[1.5rem] p-4 text-left transition ${
-                  activeMode === mode.id ? "border-cyan/30 bg-cyan/[0.08]" : ""
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-display text-lg font-semibold text-white">{mode.title}</h3>
-                  {mode.id !== "topic" ? (
-                    <span className="rounded-full border border-white/12 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-mist">
-                      Pro
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-2 text-sm leading-7 text-mist">{mode.description}</p>
-              </button>
-            ))}
-          </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {createModes.map((mode) => {
+                const locked = mode.id !== "topic" && !isPaid;
 
-          <div className="mt-5 grid gap-4">
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => handleModeChange(mode.id)}
+                    className={`rounded-[1.35rem] border p-4 text-left transition ${
+                      activeMode === mode.id
+                        ? "border-cyan/30 bg-cyan/[0.08]"
+                        : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="font-display text-lg font-semibold text-white">{mode.title}</h3>
+                      <span className="data-chip">{locked ? "Locked" : mode.access}</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-mist">{mode.summary}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="soft-divider my-6" />
+
             {activeMode === "topic" ? (
-              <>
-                <label className="text-sm text-mist">
-                  Topic
-                  <input
-                    type="text"
-                    value={topic}
-                    onChange={(event) => setTopic(event.target.value)}
-                    placeholder="Machine learning evaluation metrics"
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none transition focus:border-cyan/30"
-                  />
-                </label>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm text-mist">
+                    Topic
+                    <input
+                      type="text"
+                      value={topic}
+                      onChange={(event) => setTopic(event.target.value)}
+                      placeholder="Machine learning evaluation metrics"
+                      className="form-control mt-2"
+                    />
+                  </label>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {suggestedTopics.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="data-chip text-left normal-case tracking-normal"
+                        onClick={() => setTopic(suggestion)}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm text-mist">
+                  <label className="block text-sm text-mist">
                     Subject
                     <input
                       type="text"
                       value={subject}
                       onChange={(event) => setSubject(event.target.value)}
-                      className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none transition focus:border-cyan/30"
+                      className="form-control mt-2"
                     />
                   </label>
-                  <label className="text-sm text-mist">
+                  <label className="block text-sm text-mist">
                     Tone
                     <select
                       value={tone}
                       onChange={(event) => setTone(event.target.value)}
-                      className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none"
+                      className="form-control mt-2"
                     >
                       <option value="focused">Focused</option>
                       <option value="confident">Confident</option>
@@ -278,12 +383,13 @@ export default function CreatePage() {
                     </select>
                   </label>
                 </div>
-                <label className="text-sm text-mist">
+
+                <label className="block text-sm text-mist">
                   Slide count
                   <select
                     value={topicSlideCount}
                     onChange={(event) => setTopicSlideCount(Number(event.target.value))}
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none"
+                    className="form-control mt-2"
                   >
                     {[6, 8, 10, 12, 14].map((count) => (
                       <option key={count} value={count}>
@@ -292,47 +398,50 @@ export default function CreatePage() {
                     ))}
                   </select>
                 </label>
-              </>
+              </div>
             ) : null}
 
             {activeMode === "notes" ? (
-              <>
-                <label className="text-sm text-mist">
+              <div className="space-y-5">
+                <label className="block text-sm text-mist">
                   Optional title
                   <input
                     type="text"
                     value={notesTitle}
                     onChange={(event) => setNotesTitle(event.target.value)}
                     placeholder="Customer research summary"
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none transition focus:border-cyan/30"
+                    className="form-control mt-2"
                   />
                 </label>
-                <label className="text-sm text-mist">
+
+                <label className="block text-sm text-mist">
                   Optional topic
                   <input
                     type="text"
                     value={notesTopic}
                     onChange={(event) => setNotesTopic(event.target.value)}
                     placeholder="Customer research"
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none transition focus:border-cyan/30"
+                    className="form-control mt-2"
                   />
                 </label>
-                <label className="text-sm text-mist">
+
+                <label className="block text-sm text-mist">
                   Notes
                   <textarea
-                    rows={8}
+                    rows={9}
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     placeholder="Paste your class notes, brainstorm, or rough research summary here."
-                    className="surface-inset mt-2 w-full rounded-[1.5rem] px-4 py-3 text-white outline-none transition focus:border-cyan/30"
+                    className="form-control mt-2 min-h-[220px] resize-y"
                   />
                 </label>
-                <label className="text-sm text-mist">
+
+                <label className="block text-sm text-mist">
                   Slide count
                   <select
                     value={notesSlideCount}
                     onChange={(event) => setNotesSlideCount(Number(event.target.value))}
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none"
+                    className="form-control mt-2"
                   >
                     {[6, 8, 10, 12, 14].map((count) => (
                       <option key={count} value={count}>
@@ -341,26 +450,27 @@ export default function CreatePage() {
                     ))}
                   </select>
                 </label>
-              </>
+              </div>
             ) : null}
 
             {activeMode === "pdf" ? (
-              <>
-                <label className="text-sm text-mist">
+              <div className="space-y-5">
+                <label className="block text-sm text-mist">
                   Upload PDF
                   <input
                     type="file"
                     accept="application/pdf"
                     onChange={(event) => setPdfFile(event.target.files?.[0] ?? null)}
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none transition focus:border-cyan/30 file:mr-4 file:rounded-full file:border-0 file:bg-cyan file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
+                    className="form-control mt-2 file:mr-4 file:rounded-full file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
                   />
                 </label>
-                <label className="text-sm text-mist">
+
+                <label className="block text-sm text-mist">
                   Slide count
                   <select
                     value={pdfSlideCount}
                     onChange={(event) => setPdfSlideCount(Number(event.target.value))}
-                    className="surface-inset mt-2 w-full rounded-2xl px-4 py-3 text-white outline-none"
+                    className="form-control mt-2"
                   >
                     {[6, 8, 10, 12].map((count) => (
                       <option key={count} value={count}>
@@ -369,119 +479,237 @@ export default function CreatePage() {
                     ))}
                   </select>
                 </label>
-              </>
+              </div>
             ) : null}
-          </div>
 
-          {isLockedMode ? (
-            <div className="surface-inset mt-5 rounded-[1.5rem] p-4">
-              <p className="text-sm text-white/90">
-                This workflow is locked on Free. Upgrade to Pro to use Notes to PPT, PDF to
-                PPT, premium templates, and watermark-free exports.
-              </p>
-              <Link href="/pricing" className={`${buttonClasses("primary")} mt-4`}>
-                Upgrade to Pro
+            {isLockedMode ? (
+              <div className="surface-inset mt-6 rounded-[1.45rem] p-4">
+                <p className="text-sm leading-7 text-white/90">
+                  This workflow is locked on Free. Upgrade to Pro to use Notes to PPT, PDF to PPT,
+                  premium templates, and watermark-free exports.
+                </p>
+                <Link href="/pricing" className={`${buttonClasses("primary")} mt-4`}>
+                  Upgrade to Pro
+                </Link>
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={buttonClasses("primary")}
+                onClick={() => void handleGenerate()}
+                disabled={generating || !accessToken || !currentUser}
+              >
+                {generating ? "Generating..." : "Generate presentation"}
+              </button>
+              <Link href="/pricing" className={buttonClasses("secondary")}>
+                View plan options
               </Link>
             </div>
-          ) : null}
+          </Panel>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className={buttonClasses("primary")}
-              onClick={() => void handleGenerate()}
-              disabled={
-                generating ||
-                !accessToken ||
-                !currentUser ||
-                isLockedMode ||
-                Boolean(selectedTemplate?.is_pro && !isPaid)
-              }
-            >
-              {generating ? "Generating..." : "Generate presentation"}
-            </button>
-            <Link href="/pricing" className={buttonClasses("secondary")}>
-              View plan options
-            </Link>
-          </div>
-        </Panel>
+          <Panel>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="eyebrow text-lime">Template library</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold text-white">
+                  Pick a slide style before you generate
+                </h2>
+              </div>
+              <span className="data-chip">
+                {selectedTemplate ? selectedTemplate.name : "No template"}
+              </span>
+            </div>
 
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.22em] text-lime">Template pick</p>
-          <h2 className="mt-2 font-display text-2xl font-semibold text-white">Choose a style</h2>
-          <div className="mt-5 space-y-3">
-            {templatesLoading ? <p className="text-sm text-mist">Loading templates...</p> : null}
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => handleTemplateSelect(template)}
-                className={`surface-inset w-full rounded-[1.5rem] p-4 text-left transition ${
-                  selectedTemplateId === template.id ? "border-cyan/30 bg-cyan/[0.08]" : ""
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-display text-xl font-semibold text-white">{template.name}</h3>
-                  <span className="rounded-full border border-white/12 px-3 py-1 text-xs uppercase tracking-[0.2em] text-mist">
-                    {template.is_pro ? "Pro" : "Free"}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-mist">
-                  {template.theme.font_family} • {template.layout.cover_style}
-                </p>
-                <p className="mt-3 text-sm leading-7 text-white/85">{template.description}</p>
-                {template.is_pro && !isPaid ? (
-                  <p className="mt-3 text-sm text-cyan">
-                    Upgrade to unlock this premium template.
-                  </p>
-                ) : null}
-              </button>
-            ))}
-          </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {templatesLoading ? <p className="text-sm text-mist">Loading templates...</p> : null}
+              {templates.map((template) => {
+                const colors = [
+                  formatTemplateColor(template.theme.primary_color),
+                  formatTemplateColor(template.theme.secondary_color),
+                ];
 
-          <div className="surface-inset mt-5 rounded-[1.5rem] p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan">Preview panel</p>
-            {!result ? (
-              <p className="mt-3 text-sm leading-7 text-mist">
-                Generate a presentation to preview the title, slide outline, watermark status,
-                and download link here.
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => handleTemplateSelect(template)}
+                    className={`rounded-[1.35rem] border p-4 text-left transition ${
+                      selectedTemplateId === template.id
+                        ? "border-cyan/30 bg-cyan/[0.08]"
+                        : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-display text-lg font-semibold text-white">
+                          {template.name}
+                        </h3>
+                        <p className="mt-1 text-sm text-mist">{template.theme.font_family}</p>
+                      </div>
+                      <span className="data-chip">{template.is_pro ? "Pro" : "Free"}</span>
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2">
+                      {colors.map((color) => (
+                        <span
+                          key={color}
+                          className="h-5 w-5 rounded-full border border-white/10"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+
+                    <p className="mt-4 text-sm leading-7 text-mist">{template.description}</p>
+                    <p className="mt-3 text-sm text-white/85">
+                      {template.layout.cover_style} / {template.layout.content_columns} column layout
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </Panel>
+        </div>
+
+        <div className="space-y-4">
+          <Panel>
+            <p className="eyebrow text-cyan">Deck brief</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-white">
+              Your current generation setup
+            </h2>
+
+            <div className="preview-grid mt-5">
+              <div className="surface-inset rounded-[1.3rem] p-4">
+                <p className="text-sm text-mist">Mode</p>
+                <p className="mt-2 font-display text-xl text-white">{activeModeConfig.title}</p>
+              </div>
+              <div className="surface-inset rounded-[1.3rem] p-4">
+                <p className="text-sm text-mist">Slides</p>
+                <p className="mt-2 font-display text-xl text-white">{inputSummary.slides}</p>
+              </div>
+              <div className="surface-inset rounded-[1.3rem] p-4 md:col-span-2">
+                <p className="text-sm text-mist">Source</p>
+                <p className="mt-2 text-sm leading-7 text-white/90">{inputSummary.source}</p>
+              </div>
+              <div className="surface-inset rounded-[1.3rem] p-4 md:col-span-2">
+                <p className="text-sm text-mist">Generation style</p>
+                <p className="mt-2 text-sm leading-7 text-white/90">{inputSummary.tone}</p>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel>
+            <p className="eyebrow text-lime">Template preview</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-white">
+              {selectedTemplate?.name ?? "Choose a template"}
+            </h2>
+
+            {!selectedTemplate ? (
+              <p className="mt-4 text-sm leading-7 text-mist">
+                Select a template to preview its fonts, colors, and layout details.
               </p>
             ) : (
-              <div className="mt-4 space-y-4">
+              <div className="mt-5 space-y-4">
+                <div className="surface-inset rounded-[1.4rem] p-4">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="h-6 w-6 rounded-full border border-white/10"
+                      style={{
+                        backgroundColor: formatTemplateColor(selectedTemplate.theme.primary_color),
+                      }}
+                    />
+                    <span
+                      className="h-6 w-6 rounded-full border border-white/10"
+                      style={{
+                        backgroundColor: formatTemplateColor(selectedTemplate.theme.secondary_color),
+                      }}
+                    />
+                  </div>
+                  <p className="mt-4 text-sm leading-7 text-mist">
+                    {selectedTemplate.description}
+                  </p>
+                </div>
+
+                <div className="preview-grid">
+                  <div className="surface-inset rounded-[1.3rem] p-4">
+                    <p className="text-sm text-mist">Font family</p>
+                    <p className="mt-2 text-white">{selectedTemplate.theme.font_family}</p>
+                  </div>
+                  <div className="surface-inset rounded-[1.3rem] p-4">
+                    <p className="text-sm text-mist">Title size</p>
+                    <p className="mt-2 text-white">{selectedTemplate.theme.title_font_size}px</p>
+                  </div>
+                  <div className="surface-inset rounded-[1.3rem] p-4">
+                    <p className="text-sm text-mist">Body size</p>
+                    <p className="mt-2 text-white">{selectedTemplate.theme.body_font_size}px</p>
+                  </div>
+                  <div className="surface-inset rounded-[1.3rem] p-4">
+                    <p className="text-sm text-mist">Layout</p>
+                    <p className="mt-2 text-white">
+                      {selectedTemplate.layout.cover_style} / {selectedTemplate.layout.content_columns} column
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel>
+            <p className="eyebrow text-cyan">Output preview</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-white">
+              {result ? "Generated presentation" : "Nothing generated yet"}
+            </h2>
+
+            {!result ? (
+              <div className="surface-inset mt-5 rounded-[1.4rem] p-4 text-sm leading-7 text-mist">
+                Generate a deck to preview the title, slide outline, watermark status, and
+                download link here.
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4">
                 <div>
                   <h3 className="font-display text-2xl font-semibold text-white">
                     {result.content?.presentation_title ?? result.presentation.title}
                   </h3>
                   <p className="mt-2 text-sm text-mist">
-                    {result.presentation.source_type.toUpperCase()} •{" "}
-                    {result.presentation.template_name}
+                    {result.presentation.source_type.toUpperCase()} /{" "}
+                    {result.presentation.template_name ?? result.presentation.template_id}
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-white/90">
+
+                <div className="preview-grid">
+                  <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                     Slides: {result.presentation.slide_count}
                   </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-white/90">
+                  <div className="surface-inset rounded-[1.3rem] p-4 text-sm text-white/90">
                     Watermark: {result.presentation.watermark_applied ? "Applied" : "Removed"}
                   </div>
                 </div>
-                <div className="space-y-2">
+
+                <div className="space-y-3">
                   {(result.content?.slides ?? []).map((slide, index) => (
                     <div
                       key={`${slide.title}-${index}`}
-                      className="rounded-[1.25rem] border border-white/8 bg-white/[0.03] p-3"
+                      className="surface-inset rounded-[1.3rem] p-4"
                     >
-                      <p className="text-sm font-semibold text-white">
+                      <p className="font-semibold text-white">
                         {index + 1}. {slide.title}
                       </p>
-                      <ul className="mt-2 space-y-1 text-sm text-mist">
+                      <ul className="mt-3 space-y-1 text-sm text-mist">
                         {slide.bullets.map((bullet) => (
-                          <li key={bullet}>• {bullet}</li>
+                          <li key={bullet}>- {bullet}</li>
                         ))}
                       </ul>
+                      {slide.speaker_notes ? (
+                        <p className="mt-3 text-sm leading-7 text-white/85">
+                          Notes: {slide.speaker_notes}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
+
                 {result.presentation.file_url ? (
                   <a
                     href={result.presentation.file_url}
@@ -494,8 +722,8 @@ export default function CreatePage() {
                 ) : null}
               </div>
             )}
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
     </div>
   );

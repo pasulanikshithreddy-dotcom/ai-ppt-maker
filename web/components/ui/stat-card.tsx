@@ -11,7 +11,7 @@ export function StatCard({
     <div className="surface-card rounded-[1.5rem] p-5">
       <p className="text-sm text-mist">{label}</p>
       <p className="mt-4 font-display text-4xl font-semibold text-white">{value}</p>
-      <p className="mt-3 text-sm text-cyan">{change}</p>
+      <p className="mt-3 text-sm leading-6 text-cyan">{change}</p>
     </div>
   );
 }

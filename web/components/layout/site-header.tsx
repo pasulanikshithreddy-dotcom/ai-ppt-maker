@@ -23,15 +23,17 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/6 bg-night/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/6 bg-night/75 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0accff_0%,#95ff70_100%)] text-sm font-black text-slate-950">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#5ad9ff_0%,#a7f36b_100%)] text-sm font-black text-slate-950">
             AI
           </div>
           <div>
             <p className="font-display text-lg font-semibold text-white">AI PPT Maker</p>
-            <p className="text-xs uppercase tracking-[0.24em] text-mist">Student launch pad</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-mist">
+              AI presentation workspace
+            </p>
           </div>
         </Link>
 
@@ -52,7 +54,7 @@ export function SiteHeader() {
               </Link>
             );
           })}
-          <Tag tone="cyan">App Router</Tag>
+          <Tag tone="lime">Web app</Tag>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -60,7 +62,7 @@ export function SiteHeader() {
             <>
               <Tag tone="cyan">{currentUser.plan_code.toUpperCase()}</Tag>
               <Link href="/dashboard" className={buttonClasses("secondary")}>
-                Dashboard
+                Open app
               </Link>
               <button type="button" className={buttonClasses("ghost")} onClick={handleSignOut}>
                 Logout
