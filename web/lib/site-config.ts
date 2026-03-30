@@ -1,7 +1,8 @@
 export const marketingNav = [
-  { href: "/#workflow", label: "Workflow" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/login", label: "Login" },
+  { href: "/#features", label: "Features" },
+  { href: "/#templates", label: "Templates" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/dashboard", label: "Dashboard" },
 ];
 
 export const workspaceNav = [
