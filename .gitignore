@@ -16,6 +16,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Browser automation artifacts
+.playwright-cli/
+
 # JavaScript / TypeScript
 node_modules/
 .pnpm-store/
